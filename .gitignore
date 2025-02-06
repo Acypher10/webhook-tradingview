@@ -1,0 +1,13 @@
+.env
+.idea/
+.vscode/
+
+node_modules
+
+target
+
+__pycache__
+.history
+.hypothesis/
+build/
+reports/

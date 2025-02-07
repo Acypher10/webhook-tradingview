@@ -29,7 +29,7 @@ class RequestsClient(object):
     def __init__(self):
         self.access_id = API_KEY
         self.secret_key = API_SECRET
-        self.url = "https://api.coinex.com/v2"
+        self.url = "wss://socket.coinex.com/v2/futures"
         self.headers = self.HEADERS.copy()
 
     # Generate your signature string
@@ -162,7 +162,7 @@ def run_code():
         run_code()
 
 def send_order(market, side, amount, price):
-    url = "https://api.coinex.com/v2"
+    url = "ss://socket.coinex.com/v2/futures"  # Ajusta la URL
     params = {
         "market": market,
         "type": side,
@@ -171,8 +171,7 @@ def send_order(market, side, amount, price):
         "access_id": API_KEY,
         "tonce": str(int(time.time() * 1000))
     }
-    sorted_params = sorted(params.items())
-    query_string = "&".join(f"{k}={v}" for k, v in sorted_params)
+    query_string = urlencode(params)
     
     sign = hmac.new(API_SECRET.encode(), query_string.encode(), hashlib.sha256).hexdigest()
     
@@ -198,7 +197,7 @@ def webhook():
     time = data.get("time", "00:00")
 
     # Envía la orden a CoinEx
-    response = send_order(market, market_type, side, amount, price, time)
+    response = send_order(market, side, amount, price)
     return {"status": "success", "data": response}
 
 if __name__ == "__main__":

@@ -29,7 +29,7 @@ class RequestsClient(object):
     def __init__(self):
         self.access_id = API_KEY
         self.secret_key = API_SECRET
-        self.url = "https://api.coinex.com/v2"
+        self.url = "wss://socket.coinex.com/v2/futures"
         self.headers = self.HEADERS.copy()
 
     # Generate your signature string

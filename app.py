@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import asyncio
-import websocket
+import websockets
 import json
 import time
 import hashlib
@@ -157,7 +157,7 @@ async def subscribe_asset(conn):
 
 async def main():
     try:
-        async with websocket.connect(
+        async with websockets.connect(
             uri=WS_URL, compression=None, ping_interval=None
         ) as conn:
             await auth(conn)

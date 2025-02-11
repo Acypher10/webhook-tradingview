@@ -9,15 +9,87 @@ import hmac
 import requests
 from flask import Flask, request, jsonify
 from functools import wraps
+from urllib.parse import urlparse, urlencode
 
 # Configuración API CoinEx
 WS_URL = "wss://socket.coinex.com/v2/futures"  # WebSocket para futuros
-API_KEY = "TU_ACCESS_ID"  # Reemplaza con tu Access ID
-API_SECRET = "TU_SECRET_KEY"  # Reemplaza con tu Secret Key
+API_KEY = "ACCESS_ID"  # Reemplaza con tu Access ID
+API_SECRET = "SECRET_KEY"  # Reemplaza con tu Secret Key
 API_URL = "https://api.coinex.com/v2/futures/order"  # URL para órdenes en futuros
 FINISHED_ORDERS_URL = "https://api.coinex.com/v2/futures/order/list-finished-order"  # URL para órdenes finalizadas
 
 app = Flask(__name__)
+
+class RequestsClient(object):
+    HEADERS = {
+        "Content-Type": "application/json; charset=utf-8",
+        "Accept": "application/json",
+        "X-COINEX-KEY": "",
+        "X-COINEX-SIGN": "",
+        "X-COINEX-TIMESTAMP": "",
+    }
+
+    def __init__(self):
+        self.access_id = API_KEY
+        self.secret_key = API_SECRET
+        self.url = API_URL
+        self.headers = self.HEADERS.copy()
+
+    # Generate your signature string
+    def gen_sign(self, method, request_path, body, timestamp):
+        prepared_str = f"{method}{request_path}{body}{timestamp}"
+        signature = hmac.new(
+            bytes(self.secret_key, 'latin-1'), 
+            msg=bytes(prepared_str, 'latin-1'), 
+            digestmod=hashlib.sha256
+        ).hexdigest().lower()
+        return signature
+
+    def get_common_headers(self, signed_str, timestamp):
+        headers = self.HEADERS.copy()
+        headers["X-COINEX-KEY"] = self.access_id
+        headers["X-COINEX-SIGN"] = signed_str
+        headers["X-COINEX-TIMESTAMP"] = timestamp
+        headers["Content-Type"] = "application/json; charset=utf-8"
+        return headers
+
+    def request(self, method, url, params={}, data=""):
+        req = urlparse(url)
+        request_path = req.path
+
+        timestamp = str(int(time.time() * 1000))
+        if method.upper() == "GET":
+            # If params exist, query string needs to be added to the request path
+            if params:
+                for item in params:
+                    if params[item] is None:
+                        del params[item]
+                        continue
+                request_path = request_path + "?" + urlencode(params)
+
+            signed_str = self.gen_sign(
+                method, request_path, body="", timestamp=timestamp
+            )
+            response = requests.get(
+                url,
+                params=params,
+                headers=self.get_common_headers(signed_str, timestamp),
+            )
+
+        else:
+            signed_str = self.gen_sign(
+                method, request_path, body=data, timestamp=timestamp
+            )
+            response = requests.post(
+                url, data, headers=self.get_common_headers(signed_str, timestamp)
+            )
+
+        if response.status_code != 200:
+            raise ValueError(response.text)
+        return response
+
+
+request_client = RequestsClient()
 
 # Limitador de tasa (Máximo 30 llamadas por segundo)
 def rate_limiter(max_calls_per_second):
@@ -38,8 +110,8 @@ def rate_limiter(max_calls_per_second):
 
 @rate_limiter(30)  # Límite de 30 llamadas por segundo
 def send_order_to_coinex(market, side, amount, price):
-    timestamp = int(time.time() * 1000)
-    params = {
+    request_path = "/futures/order"
+    data = {
         "market": market,
         "market_type": "FUTURES",
         "side": side,
@@ -49,45 +121,32 @@ def send_order_to_coinex(market, side, amount, price):
         "client_id": "user1",
         "is_hide": True,
     }
-    # Ordenar los parámetros alfabéticamente
-    sorted_params = sorted(params.items())
-    query_string = "&".join(f"{k}={v}" for k, v in sorted_params)
-    # Generar firma HMAC-SHA256
-    signature = hmac.new(API_SECRET.encode(), query_string.encode(), hashlib.sha256).hexdigest()
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": signature,
-    }
-    response = requests.post(API_URL, json=params, headers=headers)
+    data = json.dumps(data)
+    response = request_client.request(
+        "POST",
+        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
+        data=data,
+    )
     return response.json()
 
 @rate_limiter(30)  # Límite de 30 llamadas por segundo
-def get_finished_orders(market):
+def get_finished_orders(market, side):
     """ Obtiene las órdenes finalizadas de futuros en CoinEx """
-    timestamp = int(time.time() * 1000)
-    params = {
+    request_path = "/futures/finished-order"
+    data = {
         "market": market,
+        "market_type": "FUTURES",
+        "side": side,
         "page": 1,
         "limit": 10,  # Puedes ajustar la cantidad de órdenes retornadas
-        "start_time": timestamp - 86400000,  # Últimas 24 horas
-        "end_time": timestamp,
     }
-    sorted_params = sorted(params.items())
-    query_string = "&".join(f"{k}={v}" for k, v in sorted_params)
-    signature = hmac.new(API_SECRET.encode(), query_string.encode(), hashlib.sha256).hexdigest()
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": signature,
-    }
-    response = requests.get(FINISHED_ORDERS_URL, params=params, headers=headers)
-    
-    try:
-        data = response.json()
-        print("📜 Órdenes Finalizadas:", json.dumps(data, indent=4))
-        return data
-    except Exception as e:
-        print(f"❌ Error al obtener órdenes finalizadas: {e}")
-        return None
+    data = json.dumps(data)
+    response = request_client.request(
+        "GET",
+        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
+        data=data,
+    )
+    return response.json()
 
 @app.route('/webhook', methods=['POST'])
 def webhook():

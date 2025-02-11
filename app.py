@@ -108,46 +108,6 @@ def rate_limiter(max_calls_per_second):
         return wrapper
     return decorator
 
-@rate_limiter(30)  # Límite de 30 llamadas por segundo
-def send_order_to_coinex(market, side, amount, price):
-    request_path = "/futures/order"
-    data = {
-        "market": market,
-        "market_type": "FUTURES",
-        "side": side,
-        "type": "limit",
-        "amount": str(amount),
-        "price": str(price),
-        "client_id": "user1",
-        "is_hide": True,
-    }
-    data = json.dumps(data)
-    response = request_client.request(
-        "POST",
-        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
-        data=data,
-    )
-    return response.json()
-
-@rate_limiter(30)  # Límite de 30 llamadas por segundo
-def get_finished_orders(market, side):
-    """ Obtiene las órdenes finalizadas de futuros en CoinEx """
-    request_path = "/futures/finished-order"
-    data = {
-        "market": market,
-        "market_type": "FUTURES",
-        "side": side,
-        "page": 1,
-        "limit": 10,  # Puedes ajustar la cantidad de órdenes retornadas
-    }
-    data = json.dumps(data)
-    response = request_client.request(
-        "GET",
-        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
-        data=data,
-    )
-    return response.json()
-
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
@@ -232,7 +192,103 @@ async def main():
     except Exception as e:
         print(f"❌ Error en WebSocket: {e}")
 
+@rate_limiter(30)
+def get_futures_market():
+    request_path = "/futures/market"
+    params = {"market": "BTCUSDT"}
+    response = request_client.request(
+        "GET",
+        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
+        params=params,
+    )
+    return response
+
+@rate_limiter(30)
+def get_futures_balance():
+    request_path = "/assets/futures/balance"
+    response = request_client.request(
+        "GET",
+        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
+    )
+    return response
+
+@rate_limiter(30)
+def get_deposit_address():
+    request_path = "/assets/deposit-address"
+    params = {"ccy": "USDT", "chain": "CSC"}
+
+    response = request_client.request(
+        "GET",
+        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
+        params=params,
+    )
+    return response
+
+@rate_limiter(30)  # Límite de 30 llamadas por segundo
+def send_order_to_coinex(market, side, amount, price):
+    request_path = "/futures/order"
+    data = {
+        "market": market,
+        "market_type": "FUTURES",
+        "side": side,
+        "type": "limit",
+        "amount": str(amount),
+        "price": str(price),
+        "client_id": "user1",
+        "is_hide": True,
+    }
+    data = json.dumps(data)
+    response = request_client.request(
+        "POST",
+        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
+        data=data,
+    )
+    return response
+
+@rate_limiter(30)  # Límite de 30 llamadas por segundo
+def get_finished_orders(market, side):
+    """ Obtiene las órdenes finalizadas de futuros en CoinEx """
+    request_path = "/futures/finished-order"
+    data = {
+        "market": market,
+        "market_type": "FUTURES",
+        "side": side,
+        "page": 1,
+        "limit": 10,  # Puedes ajustar la cantidad de órdenes retornadas
+    }
+    data = json.dumps(data)
+    response = request_client.request(
+        "GET",
+        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
+        data=data,
+    )
+    return response
+
+
+def run_code():
+    try:
+        response_1 = get_futures_market().json()
+        print(response_1)
+
+        response_2 = get_futures_balance().json()
+        print(response_2)
+
+        response_3 = get_deposit_address().json()
+        print(response_3)
+
+        response_4 = send_order_to_coinex().json()
+        print(response_4)
+
+        response_5 = get_finished_orders().json()
+        print(response_4)
+
+    except Exception as e:
+        print("Error:" + str(e))
+        time.sleep(3)
+        run_code()
+
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.create_task(main())
     app.run(host='0.0.0.0', port=5000)
+    run_code()

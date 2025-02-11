@@ -32,7 +32,7 @@ class RequestsClient(object):
     def __init__(self):
         self.access_id = API_KEY
         self.secret_key = API_SECRET
-        self.url = API_URL
+        self.url = "https://api.coinex.com/v2"
         self.headers = self.HEADERS.copy()
 
     # Generate your signature string
@@ -280,7 +280,7 @@ def run_code():
         print(response_4)
 
         response_5 = get_finished_orders().json()
-        print(response_4)
+        print(response_5)
 
     except Exception as e:
         print("Error:" + str(e))

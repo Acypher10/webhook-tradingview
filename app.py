@@ -11,6 +11,9 @@ from functools import wraps
 from urllib.parse import urlparse, urlencode
 import os
 from dotenv import load_dotenv
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 # Cargar variables del archivo .env
 load_dotenv()
@@ -162,11 +165,24 @@ def send_order_to_coinex(market, side, amount, price):
         "is_hide": True,
     }
     data = json.dumps(data)
-    response = request_client.request(
-        "POST",
-        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
-        data=data,
-    )
+
+    try:
+        response = request_client.request(
+            "POST",
+            "{url}{request_path}".format(url=request_client.url, request_path=request_path),
+            data=data,
+        )
+
+        # 🔹 Verificar si la respuesta es JSON
+        try:
+            response_data = response.json()
+            logging.info(f"✅ Respuesta API CoinEx: {response_data}")
+        except ValueError:
+            logging.error(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"🚨 Error de conexión con CoinEx: {str(e)}")
+
     return response
 
 @rate_limiter(10)  # Límite de 30 llamadas por segundo
@@ -187,6 +203,7 @@ def get_finished_orders(market, side):
         data=data,
     )
     return response
+
 
 # Variable global para almacenar la última alerta recibida
 last_alert = None  
@@ -229,10 +246,10 @@ def run_code():
                 last_alert["side"],
                 last_alert["amount"],
                 last_alert["price"]
-            ).json()
+            )
 
             if response_4:
-                print("✅ Orden enviada con éxito:", response_4)
+                print("✅ Orden enviada con éxito:", response_4.json())
             else:
                 print("❌ Error al enviar orden")
 
@@ -241,9 +258,7 @@ def run_code():
         else:
             print("⚠️ No hay alertas pendientes.")
 
-        response_5 = get_finished_orders(
-            last_alert["market"],
-            last_alert["side"],).json()
+        response_5 = get_finished_orders().json()
         print(response_5)
 
     except Exception as e:

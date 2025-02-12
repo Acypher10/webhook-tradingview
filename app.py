@@ -150,7 +150,6 @@ def get_deposit_address():
         params=params,
     )
     return response
-
 @rate_limiter(20)  # Límite de 20 llamadas por segundo
 def send_order_to_coinex(market, side, amount, price):
     request_path = "/futures/order"
@@ -166,6 +165,8 @@ def send_order_to_coinex(market, side, amount, price):
     }
     data = json.dumps(data)
 
+    logging.info(f"📤 Enviando orden a CoinEx: {data}")
+
     try:
         response = request_client.request(
             "POST",
@@ -173,10 +174,18 @@ def send_order_to_coinex(market, side, amount, price):
             data=data,
         )
 
-        # 🔹 Verificar si la respuesta es JSON
+        logging.info(f"✅ Respuesta HTTP: {response.status_code}")
+        logging.info(f"📝 Respuesta de CoinEx: {response.text}")
+
+        # Intentar decodificar la respuesta JSON
         try:
             response_data = response.json()
-            logging.info(f"✅ Respuesta API CoinEx: {response_data}")
+            logging.info(f"📌 Respuesta JSON de CoinEx: {response_data}")
+
+            # ⚠️ Verifica si CoinEx devolvió un error
+            if "code" in response_data and response_data["code"] != 0:
+                logging.error(f"❌ Error de CoinEx: {response_data['message']}")
+
         except ValueError:
             logging.error(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")
 
@@ -184,26 +193,6 @@ def send_order_to_coinex(market, side, amount, price):
         logging.error(f"🚨 Error de conexión con CoinEx: {str(e)}")
 
     return response
-
-@rate_limiter(10)  # Límite de 30 llamadas por segundo
-def get_finished_orders(market, side):
-    """ Obtiene las órdenes finalizadas de futuros en CoinEx """
-    request_path = "/futures/finished-order"
-    data = {
-        "market": market,
-        "market_type": "FUTURES",
-        "side": side,
-        "page": 1,
-        "limit": 10,  # Puedes ajustar la cantidad de órdenes retornadas
-    }
-    data = json.dumps(data)
-    response = request_client.request(
-        "GET",
-        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
-        data=data,
-    )
-    return response
-
 
 # Variable global para almacenar la última alerta recibida
 last_alert = None  
@@ -258,8 +247,6 @@ def run_code():
         else:
             print("⚠️ No hay alertas pendientes.")
 
-        response_5 = get_finished_orders().json()
-        print(response_5)
 
     except Exception as e:
         print("Error:", str(e))

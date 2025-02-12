@@ -10,10 +10,21 @@ import requests
 from flask import Flask, request, jsonify
 from functools import wraps
 from urllib.parse import urlparse, urlencode
+import os
+from dotenv import load_dotenv
+
+# Cargar variables del archivo .env
+load_dotenv()
 
 # Configuración API CoinEx
-API_KEY = "ACCESS_ID"  # Reemplaza con tu Access ID
-API_SECRET = "SECRET_KEY"  # Reemplaza con tu Secret Key
+# Ahora puedes acceder a ellas con os.getenv()
+
+API_KEY = os.getenv("ACCESS_ID")
+API_SECRET = os.getenv("SECRET_KEY")
+
+if not API_KEY or not API_SECRET:
+    raise ValueError("Faltan las variables de entorno ACCESS_ID o SECRET_KEY")
+
 API_URL = "https://api.coinex.com/v2/futures/order"  # URL para órdenes en futuros
 FINISHED_ORDERS_URL = "https://api.coinex.com/v2/futures/order/list-finished-order"  # URL para órdenes finalizadas
 
@@ -117,7 +128,7 @@ def get_futures_market():
     )
     return response
 
-@rate_limiter(20) # Límite de 20 llamadas por segundo
+@rate_limiter(10) # Límite de 20 llamadas por segundo
 def get_futures_balance():
     request_path = "/assets/futures/balance"
     response = request_client.request(
@@ -126,7 +137,7 @@ def get_futures_balance():
     )
     return response
 
-@rate_limiter(20) # Límite de 20 llamadas por segundo
+@rate_limiter(10) # Límite de 20 llamadas por segundo
 def get_deposit_address():
     request_path = "/assets/deposit-address"
     params = {"ccy": "USDT", "chain": "CSC"}
@@ -159,7 +170,7 @@ def send_order_to_coinex(market, side, amount, price):
     )
     return response
 
-@rate_limiter(20)  # Límite de 30 llamadas por segundo
+@rate_limiter(10)  # Límite de 30 llamadas por segundo
 def get_finished_orders(market, side):
     """ Obtiene las órdenes finalizadas de futuros en CoinEx """
     request_path = "/futures/finished-order"

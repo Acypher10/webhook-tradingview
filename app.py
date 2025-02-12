@@ -175,14 +175,11 @@ def send_order_to_coinex(market, side, amount, price):
         )
 
         logging.info(f"✅ Respuesta HTTP: {response.status_code}")
-        logging.info(f"📝 Respuesta de CoinEx: {response.text}")
 
-        # Intentar decodificar la respuesta JSON
         try:
             response_data = response.json()
             logging.info(f"📌 Respuesta JSON de CoinEx: {response_data}")
 
-            # ⚠️ Verifica si CoinEx devolvió un error
             if "code" in response_data and response_data["code"] != 0:
                 logging.error(f"❌ Error de CoinEx: {response_data['message']}")
 

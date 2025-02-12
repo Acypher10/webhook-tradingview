@@ -106,7 +106,7 @@ def rate_limiter(max_calls_per_second):
         return wrapper
     return decorator
 
-@rate_limiter(20)
+@rate_limiter(10)
 def get_futures_market():
     request_path = "/futures/market"
     params = {"market": "BTCUSDT"}
@@ -117,7 +117,7 @@ def get_futures_market():
     )
     return response
 
-@rate_limiter(20)
+@rate_limiter(20) # Límite de 20 llamadas por segundo
 def get_futures_balance():
     request_path = "/assets/futures/balance"
     response = request_client.request(
@@ -126,7 +126,7 @@ def get_futures_balance():
     )
     return response
 
-@rate_limiter(20)
+@rate_limiter(20) # Límite de 20 llamadas por segundo
 def get_deposit_address():
     request_path = "/assets/deposit-address"
     params = {"ccy": "USDT", "chain": "CSC"}
@@ -212,7 +212,6 @@ def webhook():
     amount = data.get("amount", 0.01)
     price = data.get("price", 50000)
 
-    run_code()
-
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000)
+    run_code()

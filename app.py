@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import asyncio
-import websockets
 import json
 import time
 import hashlib
@@ -189,8 +188,28 @@ def get_finished_orders(market, side):
     )
     return response
 
+# Variable global para almacenar la última alerta recibida
+last_alert = None  
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    global last_alert
+    data = request.json
+    print("📩 Alerta recibida:", data)
+
+    # Guardar la alerta en la variable global
+    last_alert = {
+        "market": data.get("market", "BTCUSDT"),
+        "side": data.get("side", "buy"),  # 'buy' o 'sell'
+        "amount": data.get("amount", 0.01),
+        "price": data.get("price", 50000)
+    }
+
+    return jsonify({"status": "success", "message": "Alerta recibida"}), 200
 
 def run_code():
+    global last_alert
+
     try:
         response_1 = get_futures_market().json()
         print(response_1)
@@ -201,29 +220,36 @@ def run_code():
         response_3 = get_deposit_address().json()
         print(response_3)
 
-        response_4 = send_order_to_coinex().json()
-        print(response_4)
+        # Verificar si hay una alerta pendiente
+        if last_alert:
+            print("🚀 Ejecutando orden con la alerta:", last_alert)
 
-        response_5 = get_finished_orders().json()
+            response_4 = send_order_to_coinex(
+                last_alert["market"],
+                last_alert["side"],
+                last_alert["amount"],
+                last_alert["price"]
+            ).json()
+
+            if response_4:
+                print("✅ Orden enviada con éxito:", response_4)
+            else:
+                print("❌ Error al enviar orden")
+
+            # Limpiar la alerta después de ejecutar la orden
+            last_alert = None
+        else:
+            print("⚠️ No hay alertas pendientes.")
+
+        response_5 = get_finished_orders(
+            last_alert["market"],
+            last_alert["side"],).json()
         print(response_5)
 
     except Exception as e:
-        print("Error:" + str(e))
+        print("Error:", str(e))
         time.sleep(3)
         run_code()
 
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    data = request.json
-    print("📩 Alerta recibida:", data)
-
-    # Extraer datos de TradingView
-    market = data.get("market", "BTCUSDT")
-    side = data.get("side", "buy")  # 'buy' o 'sell'
-    amount = data.get("amount", 0.01)
-    price = data.get("price", 50000)
-
-    return jsonify({"status":"success", "message":"Alerta recibida"}), 200
-
 if __name__ == "__main__":
-    run_code()
+    app.run(host="0.0.0.0", port=5000)

@@ -12,7 +12,6 @@ from functools import wraps
 from urllib.parse import urlparse, urlencode
 
 # Configuración API CoinEx
-WS_URL = "wss://socket.coinex.com/v2/futures"  # WebSocket para futuros
 API_KEY = "ACCESS_ID"  # Reemplaza con tu Access ID
 API_SECRET = "SECRET_KEY"  # Reemplaza con tu Secret Key
 API_URL = "https://api.coinex.com/v2/futures/order"  # URL para órdenes en futuros
@@ -88,10 +87,9 @@ class RequestsClient(object):
             raise ValueError(response.text)
         return response
 
-
 request_client = RequestsClient()
 
-# Limitador de tasa (Máximo 30 llamadas por segundo)
+# Limitador de tasa (Máximo 20 llamadas por segundo)
 def rate_limiter(max_calls_per_second):
     interval = 1.0 / max_calls_per_second
     def decorator(func):
@@ -108,7 +106,7 @@ def rate_limiter(max_calls_per_second):
         return wrapper
     return decorator
 
-@rate_limiter(30)
+@rate_limiter(20)
 def get_futures_market():
     request_path = "/futures/market"
     params = {"market": "BTCUSDT"}
@@ -119,7 +117,7 @@ def get_futures_market():
     )
     return response
 
-@rate_limiter(30)
+@rate_limiter(20)
 def get_futures_balance():
     request_path = "/assets/futures/balance"
     response = request_client.request(
@@ -128,7 +126,7 @@ def get_futures_balance():
     )
     return response
 
-@rate_limiter(30)
+@rate_limiter(20)
 def get_deposit_address():
     request_path = "/assets/deposit-address"
     params = {"ccy": "USDT", "chain": "CSC"}
@@ -140,7 +138,7 @@ def get_deposit_address():
     )
     return response
 
-@rate_limiter(30)  # Límite de 30 llamadas por segundo
+@rate_limiter(20)  # Límite de 20 llamadas por segundo
 def send_order_to_coinex(market, side, amount, price):
     request_path = "/futures/order"
     data = {
@@ -148,8 +146,8 @@ def send_order_to_coinex(market, side, amount, price):
         "market_type": "FUTURES",
         "side": side,
         "type": "limit",
-        "amount": str(amount),
-        "price": str(price),
+        "amount": amount,
+        "price": price,
         "client_id": "user1",
         "is_hide": True,
     }
@@ -161,7 +159,7 @@ def send_order_to_coinex(market, side, amount, price):
     )
     return response
 
-@rate_limiter(30)  # Límite de 30 llamadas por segundo
+@rate_limiter(20)  # Límite de 30 llamadas por segundo
 def get_finished_orders(market, side):
     """ Obtiene las órdenes finalizadas de futuros en CoinEx """
     request_path = "/futures/finished-order"

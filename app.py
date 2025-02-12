@@ -161,33 +161,39 @@ def send_order_to_coinex(market, side, amount, price):
         "amount": amount,
         "price": price,
         "client_id": "user1",
-        "is_hide": True,
+        "is_hide": True,  # Corrección si antes estaba como 'is_hiden'
     }
-    data = json.dumps(data)
+    data_json = json.dumps(data)
 
-    logging.info(f"📤 Enviando orden a CoinEx: {data}")
+    logging.info(f"📤 Enviando orden a CoinEx: {data_json}")
+    print(f"📤 Enviando orden a CoinEx: {data_json}")  # 👈 Se imprimirá en los logs de Render
 
     try:
         response = request_client.request(
             "POST",
             "{url}{request_path}".format(url=request_client.url, request_path=request_path),
-            data=data,
+            data=data_json,
         )
 
         logging.info(f"✅ Respuesta HTTP: {response.status_code}")
+        print(f"✅ Respuesta HTTP: {response.status_code}")  # 👈 Se imprimirá en los logs de Render
 
         try:
             response_data = response.json()
             logging.info(f"📌 Respuesta JSON de CoinEx: {response_data}")
+            print(f"📌 Respuesta JSON de CoinEx: {response_data}")  # 👈 Se imprimirá en los logs de Render
 
             if "code" in response_data and response_data["code"] != 0:
                 logging.error(f"❌ Error de CoinEx: {response_data['message']}")
+                print(f"❌ Error de CoinEx: {response_data['message']}")  # 👈 Se imprimirá en los logs de Render
 
         except ValueError:
             logging.error(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")
+            print(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")  # 👈 Se imprimirá en los logs de Render
 
     except requests.exceptions.RequestException as e:
         logging.error(f"🚨 Error de conexión con CoinEx: {str(e)}")
+        print(f"🚨 Error de conexión con CoinEx: {str(e)}")  # 👈 Se imprimirá en los logs de Render
 
     return response
 
@@ -252,3 +258,4 @@ def run_code():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+    run_code()

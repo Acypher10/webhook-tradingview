@@ -223,6 +223,7 @@ def webhook():
     amount = data.get("amount", 0.01)
     price = data.get("price", 50000)
 
+    return jsonify({"status":"success", "message":"Alerta recibida"}), 200
+
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000)
     run_code()

@@ -2,3 +2,4 @@ Flask
 requests
 gunicorn==19.7.1
 websockets==13.1
+python-dotenv==1.0.1

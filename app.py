@@ -220,18 +220,10 @@ def run_code():
     global last_alert
 
     try:
-        response_1 = get_futures_market().json()
-        print(response_1)
+        print("🔄 Ejecutando run_code()...")  # 👈 Verifica si entra aquí
 
-        response_2 = get_futures_balance().json()
-        print(response_2)
-
-        response_3 = get_deposit_address().json()
-        print(response_3)
-
-        # Verificar si hay una alerta pendiente
         if last_alert:
-            print("🚀 Ejecutando orden con la alerta:", last_alert)
+            print(f"🚀 Enviando orden con alerta: {last_alert}")  # 👈 Verifica los datos antes de enviar
 
             response_4 = send_order_to_coinex(
                 last_alert["market"],
@@ -240,15 +232,21 @@ def run_code():
                 last_alert["price"]
             )
 
-            if response_4:
-                print("✅ Orden enviada con éxito:", response_4.json())
-            else:
-                print("❌ Error al enviar orden")
+            print(f"🔍 Respuesta de send_order_to_coinex: {response_4}")  # 👈 Ver si se devuelve algo
 
-            # Limpiar la alerta después de ejecutar la orden
-            last_alert = None
+            if response_4:
+                try:
+                    print(f"✅ Respuesta JSON de CoinEx: {response_4.json()}")  # 👈 Imprime la respuesta JSON real
+                except Exception as e:
+                    print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_4.text}")  # 👈 Ver error real
+
+            last_alert = None  # Limpia alerta después de usarla
+
         else:
             print("⚠️ No hay alertas pendientes.")
+
+    except Exception as e:
+        print(f"🔥 Error en run_code(): {str(e)}")
 
 
     except Exception as e:

@@ -459,7 +459,7 @@ def run_code():
             
             response_3 = adjust_position_leverage()
             
-            print(f"🔍 Respuesta de send_order_to_coinex: {response_3}")  # 👈 Ver si se devuelve algo
+            print(f"🔍 Respuesta de adjust_position_leverage: {response_3}")  # 👈 Ver si se devuelve algo
             
             print(f"🚀 Enviando orden con alerta: {last_alert}")  # 👈 Verifica los datos antes de enviar
 

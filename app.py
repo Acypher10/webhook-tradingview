@@ -119,7 +119,7 @@ def rate_limiter(max_calls_per_second):
         return wrapper
     return decorator
 
-@rate_limiter(10)
+@rate_limiter(10) # Límite de 10 llamadas por segundo
 def get_futures_market():
     request_path = "/futures/market"
     params = {"market": "BTCUSDT"}
@@ -130,12 +130,54 @@ def get_futures_market():
     )
     return response
 
-@rate_limiter(10) # Límite de 20 llamadas por segundo
+@rate_limiter(10) # Límite de 10 llamadas por segundo
 def get_futures_balance():
     request_path = "/assets/futures/balance"
     response = request_client.request(
         "GET",
         "{url}{request_path}".format(url=request_client.url, request_path=request_path),
+    )
+    return response
+
+@rate_limiter(10) # Límite de 10 llamadas por segundo
+def close_position():
+    request_path = "/futures/close-position"
+    params = {"market": "BTCUSDT",
+              "market_type": "FUTURES",
+              "type": "market"
+              }
+    response = request_client.request(
+        "POST",
+        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
+    )
+    return response
+
+@rate_limiter(10) # Límite de 10 llamadas por segundo
+def cancel_all_orders(side):
+    request_path = "/futures/cancel-all-order"
+    params = {"market": "BTCUSDT", 
+              "market_type": "FUTURES",
+              "side": side,
+              }
+    response = request_client.request(
+        "POST",
+        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
+        params=params,
+    )
+    return response
+
+@rate_limiter(10) # Límite de 10 llamadas por segundo
+def adjust_position_leverage():
+    request_path = "/futures/adjust-position-leverage"
+    params = {"market": "BTCUSDT", 
+              "market_type": "FUTURES",
+              "margin mode": "isolated",
+              "leverage": 10
+              }
+    response = request_client.request(
+        "POST",
+        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
+        params=params,
     )
     return response
 
@@ -271,6 +313,26 @@ def run_code():
         print("🔄 Ejecutando run_code()...")  # 👈 Verifica si entra aquí
 
         if last_alert:
+            print(f"🚀 Cancelando posición")  # 👈 Verifica los datos antes de enviar
+            
+            response_1 = close_position()
+            
+            print(f"🔍 Respuesta de close_position: {response_1}")  # 👈 Ver si se devuelve algo
+            
+            print(f"🚀 Cancelando todas las ordenes")  # 👈 Verifica los datos antes de enviar
+            
+            response_2 = cancel_all_orders(
+                last_alert["side"]
+            )
+            
+            print(f"🔍 Respuesta de cancel_all_orders: {response_2}")  # 👈 Ver si se devuelve algo
+
+            print(f"🚀 Ajustando apalancamiento")  # 👈 Verifica los datos antes de enviar
+            
+            response_3 = adjust_position_leverage()
+            
+            print(f"🔍 Respuesta de send_order_to_coinex: {response_3}")  # 👈 Ver si se devuelve algo
+            
             print(f"🚀 Enviando orden con alerta: {last_alert}")  # 👈 Verifica los datos antes de enviar
 
             response_4 = send_order_to_coinex(
@@ -293,6 +355,23 @@ def run_code():
 
             print(f"🔍 Respuesta de set_position_take_profit: {response_6}")  # 👈 Ver si se devuelve algo
 
+            if response_1:
+                try:
+                    print(f"✅ Respuesta JSON de CoinEx: {response_1.json()}")  # 👈 Imprime la respuesta JSON real
+                except Exception as e:
+                    print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_1.text}")  # 👈 Ver error real
+
+            if response_2:
+                try:
+                    print(f"✅ Respuesta JSON de CoinEx: {response_2.json()}")  # 👈 Imprime la respuesta JSON real
+                except Exception as e:
+                    print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_2.text}")  # 👈 Ver error real
+
+            if response_3:
+                try:
+                    print(f"✅ Respuesta JSON de CoinEx: {response_3.json()}")  # 👈 Imprime la respuesta JSON real
+                except Exception as e:
+                    print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_3.text}")  # 👈 Ver error real
 
             if response_4:
                 try:
@@ -311,7 +390,6 @@ def run_code():
                     print(f"✅ Respuesta JSON de CoinEx: {response_6.json()}")  # 👈 Imprime la respuesta JSON real
                 except Exception as e:
                     print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_6.text}")  # 👈 Ver error real
-
 
             last_alert = None  # Limpia alerta después de usarla
 

@@ -206,19 +206,24 @@ def webhook():
     data = request.json
     print("📩 Alerta recibida:", data)
 
-    # Guardar la alerta en la variable global
+    # Convertir amount a número y verificar que sea válido
+    amount = float(data.get("amount", 0))
+    if amount <= 0:
+        print("⚠️ Orden ignorada: El monto debe ser mayor a 0. Ajustando a un valor estimado...")
+        amount = 0.001  # 👈 Cambia esto según tu tamaño mínimo de orden permitido.
+
     last_alert = {
         "market": data.get("market", "BTCUSDT"),
-        "side": data.get("side", "buy"),  # 'buy' o 'sell'
-        "amount": data.get("amount", 0.01),
-        "price": data.get("price", 50000)
+        "side": data.get("side", "buy"),
+        "amount": amount,  
+        "price": float(data.get("price", 50000))
     }
 
-    # 🔥 Llamar `run_code()` aquí
     print("🚀 Ejecutando run_code() después de recibir alerta")
-    run_code()  # 👈 Esto lo ejecuta directamente
+    run_code()
 
     return jsonify({"status": "success", "message": "Alerta recibida"}), 200
+
 
 def run_code():
     global last_alert

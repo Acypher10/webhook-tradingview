@@ -139,27 +139,47 @@ def get_futures_balance():
     )
     return response
 
-@rate_limiter(10) # Límite de 20 llamadas por segundo
-def get_deposit_address():
-    request_path = "/assets/deposit-address"
-    params = {"ccy": "USDT", "chain": "CSC"}
+@rate_limiter(20) # Límite de 20 llamadas por segundo
+def set_position_stop_loss(sl_price):
+    request_path = "/futures/set-position-stop-loss"
+    params = {"market": "BTCUSDT", 
+              "market_type": "FUTURES",
+              "stop_loss_type": "latest_price",
+              "stop_loss_price": sl_price
+              }
 
     response = request_client.request(
-        "GET",
+        "POST",
         "{url}{request_path}".format(url=request_client.url, request_path=request_path),
         params=params,
     )
     return response
+
+@rate_limiter(20) # Límite de 20 llamadas por segundo
+def set_position_take_profit(tp_price):
+    request_path = "/futures/set-position-take-profit"
+    params = {"market": "BTCUSDT", 
+              "market_type": "FUTURES",
+              "take_profit_type": "latest_price",
+              "take_profit_price": tp_price
+              }
+
+    response = request_client.request(
+        "POST",
+        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
+        params=params,
+    )
+    return response
+
 @rate_limiter(20)  # Límite de 20 llamadas por segundo
-def send_order_to_coinex(market, side, amount, price):
+def send_order_to_coinex(market, side, amount):
     request_path = "/futures/order"
     data = {
         "market": market,
         "market_type": "FUTURES",
         "side": side,
-        "type": "limit",
+        "type": "market",
         "amount": amount,
-        "price": price,
         "client_id": "user1",
         "is_hide": True,  # Corrección si antes estaba como 'is_hiden'
     }
@@ -210,19 +230,36 @@ def webhook():
     amount = float(data.get("amount", 0))
     if amount <= 0:
         print("⚠️ Orden ignorada: El monto debe ser mayor a 0. Ajustando a un valor estimado...")
-        amount = 0.001  # 👈 Cambia esto según tu tamaño mínimo de orden permitido.
+        amount = 0.001  # 👈 Ajusta esto según el tamaño mínimo permitido.
+
+    price = float(data.get("price", 50000))
+    side = data.get("side", "buy").lower()
+
+    # Calcular SL y TP según el lado de la orden
+    if side == "buy":
+        sl_price = price * 0.99  # -1%
+        tp_price = price * 1.01  # +1%
+    elif side == "sell":
+        sl_price = price * 1.01  # +1%
+        tp_price = price * 0.99  # -1%
+    else:
+        print("⚠️ Error: 'side' inválido. Debe ser 'buy' o 'sell'.")
+        return jsonify({"status": "error", "message": "Side inválido"}), 400
 
     last_alert = {
         "market": data.get("market", "BTCUSDT"),
-        "side": data.get("side", "buy"),
-        "amount": amount,  
-        "price": float(data.get("price", 50000))
+        "side": side,
+        "amount": amount,
+        "price": price,
+        "sl_price": sl_price,
+        "tp_price": tp_price,
     }
 
-    print("🚀 Ejecutando run_code() después de recibir alerta")
+    print(f"🚀 Orden recibida: {last_alert}")
     run_code()
 
     return jsonify({"status": "success", "message": "Alerta recibida"}), 200
+
 
 
 def run_code():
@@ -240,16 +277,41 @@ def run_code():
                 last_alert["market"],
                 last_alert["side"],
                 last_alert["amount"],
-                last_alert["price"]
             )
 
             print(f"🔍 Respuesta de send_order_to_coinex: {response_4}")  # 👈 Ver si se devuelve algo
+
+            response_5 = set_position_stop_loss(
+                last_alert["sl_price"]
+            )
+
+            print(f"🔍 Respuesta de set_position_stop_loss: {response_5}")  # 👈 Ver si se devuelve algo
+
+            response_6 = set_position_take_profit(
+                last_alert["tp_price"]
+            )
+
+            print(f"🔍 Respuesta de set_position_take_profit: {response_6}")  # 👈 Ver si se devuelve algo
+
 
             if response_4:
                 try:
                     print(f"✅ Respuesta JSON de CoinEx: {response_4.json()}")  # 👈 Imprime la respuesta JSON real
                 except Exception as e:
                     print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_4.text}")  # 👈 Ver error real
+
+            if response_5:
+                try:
+                    print(f"✅ Respuesta JSON de CoinEx: {response_5.json()}")  # 👈 Imprime la respuesta JSON real
+                except Exception as e:
+                    print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_5.text}")  # 👈 Ver error real
+
+            if response_6:
+                try:
+                    print(f"✅ Respuesta JSON de CoinEx: {response_6.json()}")  # 👈 Imprime la respuesta JSON real
+                except Exception as e:
+                    print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_6.text}")  # 👈 Ver error real
+
 
             last_alert = None  # Limpia alerta después de usarla
 

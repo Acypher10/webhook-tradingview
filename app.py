@@ -146,10 +146,37 @@ def close_position():
               "market_type": "FUTURES",
               "type": "market"
               }
-    response = request_client.request(
-        "POST",
-        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
-    )
+    
+    logging.info(f"📤 Cerrando posiciones en CoinEx: {params}")
+    print(f"📤 Cerrando posiciones en CoinEx: {params}")
+
+    try:
+        response = request_client.request(
+            "POST",
+            "{url}{request_path}".format(url=request_client.url, request_path=request_path),
+            params=params,
+        )
+
+        logging.info(f"✅ Respuesta HTTP: {response.status_code}")
+        print(f"✅ Respuesta HTTP: {response.status_code}")
+
+        try:
+            response_data = response.json()
+            logging.info(f"📌 Respuesta JSON de CoinEx: {response_data}")
+            print(f"📌 Respuesta JSON de CoinEx: {response_data}")
+
+            if "code" in response_data and response_data["code"] != 0:
+                logging.error(f"❌ Error de CoinEx: {response_data['message']}")
+                print(f"❌ Error de CoinEx: {response_data['message']}")
+
+        except ValueError:
+            logging.error(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")
+            print(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"🚨 Error de conexión con CoinEx: {str(e)}")
+        print(f"🚨 Error de conexión con CoinEx: {str(e)}")
+
     return response
 
 @rate_limiter(10) # Límite de 10 llamadas por segundo
@@ -159,11 +186,37 @@ def cancel_all_orders(side):
               "market_type": "FUTURES",
               "side": side,
               }
-    response = request_client.request(
-        "POST",
-        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
-        params=params,
-    )
+    
+    logging.info(f"📤 Cancelando todas las órdenes en CoinEx: {params}")
+    print(f"📤 Cancelando todas las órdenes en CoinEx: {params}")
+    
+    try:
+        response = request_client.request(
+            "POST",
+            "{url}{request_path}".format(url=request_client.url, request_path=request_path),
+            params=params,
+        )
+
+        logging.info(f"✅ Respuesta HTTP: {response.status_code}")
+        print(f"✅ Respuesta HTTP: {response.status_code}")
+
+        try:
+            response_data = response.json()
+            logging.info(f"📌 Respuesta JSON de CoinEx: {response_data}")
+            print(f"📌 Respuesta JSON de CoinEx: {response_data}")
+
+            if "code" in response_data and response_data["code"] != 0:
+                logging.error(f"❌ Error de CoinEx: {response_data['message']}")
+                print(f"❌ Error de CoinEx: {response_data['message']}")
+
+        except ValueError:
+            logging.error(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")
+            print(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"🚨 Error de conexión con CoinEx: {str(e)}")
+        print(f"🚨 Error de conexión con CoinEx: {str(e)}")
+
     return response
 
 @rate_limiter(10) # Límite de 10 llamadas por segundo
@@ -174,11 +227,36 @@ def adjust_position_leverage():
               "margin mode": "isolated",
               "leverage": 10
               }
-    response = request_client.request(
-        "POST",
-        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
-        params=params,
-    )
+    logging.info(f"📤 Ajustando apalancamiento en CoinEx: {params}")
+    print(f"📤 Ajustando apalancamiento en CoinEx: {params}")
+
+    try:
+        response = request_client.request(
+            "POST",
+            "{url}{request_path}".format(url=request_client.url, request_path=request_path),
+            params=params,
+        )
+
+        logging.info(f"✅ Respuesta HTTP: {response.status_code}")
+        print(f"✅ Respuesta HTTP: {response.status_code}")
+
+        try:
+            response_data = response.json()
+            logging.info(f"📌 Respuesta JSON de CoinEx: {response_data}")
+            print(f"📌 Respuesta JSON de CoinEx: {response_data}")
+
+            if "code" in response_data and response_data["code"] != 0:
+                logging.error(f"❌ Error de CoinEx: {response_data['message']}")
+                print(f"❌ Error de CoinEx: {response_data['message']}")
+
+        except ValueError:
+            logging.error(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")
+            print(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"🚨 Error de conexión con CoinEx: {str(e)}")
+        print(f"🚨 Error de conexión con CoinEx: {str(e)}")
+
     return response
 
 @rate_limiter(20) # Límite de 20 llamadas por segundo
@@ -190,11 +268,36 @@ def set_position_stop_loss(sl_price):
               "stop_loss_price": sl_price
               }
 
-    response = request_client.request(
-        "POST",
-        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
-        params=params,
-    )
+    logging.info(f"📤 Enviando stop loss: {params}")
+    print(f"📤 Enviando stop loss: {params}")  # 👈 Ver en logs de Render
+
+    try:
+        response = request_client.request(
+            "POST",
+            f"{request_client.url}{request_path}",
+            params=params,
+        )
+
+        logging.info(f"✅ Respuesta HTTP: {response.status_code}")
+        print(f"✅ Respuesta HTTP: {response.status_code}")  # 👈 Log en Render
+
+        try:
+            response_data = response.json()
+            logging.info(f"📌 Respuesta JSON de CoinEx: {response_data}")
+            print(f"📌 Respuesta JSON de CoinEx: {response_data}")
+
+            if "code" in response_data and response_data["code"] != 0:
+                logging.error(f"❌ Error de CoinEx: {response_data['message']}")
+                print(f"❌ Error de CoinEx: {response_data['message']}")  # 👈 Log en Render
+
+        except ValueError:
+            logging.error(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")
+            print(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"🚨 Error de conexión con CoinEx: {str(e)}")
+        print(f"🚨 Error de conexión con CoinEx: {str(e)}")  # 👈 Log en Render
+
     return response
 
 @rate_limiter(20) # Límite de 20 llamadas por segundo
@@ -206,11 +309,36 @@ def set_position_take_profit(tp_price):
               "take_profit_price": tp_price
               }
 
-    response = request_client.request(
-        "POST",
-        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
-        params=params,
-    )
+    logging.info(f"📤 Enviando stop loss: {params}")
+    print(f"📤 Enviando stop loss: {params}")  # 👈 Ver en logs de Render
+
+    try:
+        response = request_client.request(
+            "POST",
+            f"{request_client.url}{request_path}",
+            params=params,
+        )
+
+        logging.info(f"✅ Respuesta HTTP: {response.status_code}")
+        print(f"✅ Respuesta HTTP: {response.status_code}")  # 👈 Log en Render
+
+        try:
+            response_data = response.json()
+            logging.info(f"📌 Respuesta JSON de CoinEx: {response_data}")
+            print(f"📌 Respuesta JSON de CoinEx: {response_data}")
+
+            if "code" in response_data and response_data["code"] != 0:
+                logging.error(f"❌ Error de CoinEx: {response_data['message']}")
+                print(f"❌ Error de CoinEx: {response_data['message']}")  # 👈 Log en Render
+
+        except ValueError:
+            logging.error(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")
+            print(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"🚨 Error de conexión con CoinEx: {str(e)}")
+        print(f"🚨 Error de conexión con CoinEx: {str(e)}")  # 👈 Log en Render
+
     return response
 
 @rate_limiter(20)  # Límite de 20 llamadas por segundo

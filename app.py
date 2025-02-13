@@ -214,10 +214,16 @@ def webhook():
         "price": data.get("price", 50000)
     }
 
+    # 🔥 Llamar `run_code()` aquí
+    print("🚀 Ejecutando run_code() después de recibir alerta")
+    run_code()  # 👈 Esto lo ejecuta directamente
+
     return jsonify({"status": "success", "message": "Alerta recibida"}), 200
 
 def run_code():
     global last_alert
+
+    print("🏁 run_code() ha sido llamado")  # 👈 VERIFICA SI SE EJECUTA
 
     try:
         print("🔄 Ejecutando run_code()...")  # 👈 Verifica si entra aquí

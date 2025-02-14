@@ -142,10 +142,10 @@ def get_futures_balance():
 @rate_limiter(10) # Límite de 10 llamadas por segundo
 def current_position():
     request_path = "/futures/pending-position"
-    data = {"market": "BTCUSDT",
+    params = {"market": "BTCUSDT",
             "market_type": "FUTURES"
               }
-    data_json = json.dumps(data)
+    data_json = json.dumps(params)
     
     logging.info(f"📤 Consultando posición en CoinEx: {data_json}")
     print(f"📤 Consultando posición en CoinEx: {data_json}")

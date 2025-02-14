@@ -142,11 +142,11 @@ def get_futures_balance():
 @rate_limiter(20) # Límite de 20 llamadas por segundo
 def close_position():
     request_path = "/futures/close-position"
-    params = {"market": "BTCUSDT",
+    data = {"market": "BTCUSDT",
               "market_type": "FUTURES",
               "type": "market"
               }
-    data_json = json.dumps(params)
+    data_json = json.dumps(data)
     
     logging.info(f"📤 Cerrando posiciones en CoinEx: {data_json}")
     print(f"📤 Cerrando posiciones en CoinEx: {data_json}")
@@ -155,7 +155,7 @@ def close_position():
         response = request_client.request(
             "POST",
             "{url}{request_path}".format(url=request_client.url, request_path=request_path),
-            params=params,
+            data=data_json,
         )
 
         logging.info(f"✅ Respuesta HTTP: {response.status_code}")
@@ -183,11 +183,11 @@ def close_position():
 @rate_limiter(20) # Límite de 20 llamadas por segundo
 def cancel_all_orders(side):
     request_path = "/futures/cancel-all-order"
-    params = {"market": "BTCUSDT", 
+    data = {"market": "BTCUSDT", 
               "market_type": "FUTURES",
               "side": side,
               }
-    data_json = json.dumps(params)
+    data_json = json.dumps(data)
     
     logging.info(f"📤 Cancelando todas las órdenes en CoinEx: {data_json}")
     print(f"📤 Cancelando todas las órdenes en CoinEx: {data_json}")
@@ -196,7 +196,7 @@ def cancel_all_orders(side):
         response = request_client.request(
             "POST",
             "{url}{request_path}".format(url=request_client.url, request_path=request_path),
-            params=params,
+            data=data_json,
         )
 
         logging.info(f"✅ Respuesta HTTP: {response.status_code}")
@@ -224,12 +224,12 @@ def cancel_all_orders(side):
 @rate_limiter(10) # Límite de 10 llamadas por segundo
 def adjust_position_leverage():
     request_path = "/futures/adjust-position-leverage"
-    params = {"market": "BTCUSDT", 
+    data = {"market": "BTCUSDT", 
               "market_type": "FUTURES",
               "margin mode": "isolated",
               "leverage": 10
               }
-    data_json = json.dumps(params)
+    data_json = json.dumps(data)
 
     logging.info(f"📤 Ajustando apalancamiento en CoinEx: {data_json}")
     print(f"📤 Ajustando apalancamiento en CoinEx: {data_json}")
@@ -238,7 +238,7 @@ def adjust_position_leverage():
         response = request_client.request(
             "POST",
             "{url}{request_path}".format(url=request_client.url, request_path=request_path),
-            params=params,
+            data=data_json,
         )
 
         logging.info(f"✅ Respuesta HTTP: {response.status_code}")
@@ -266,12 +266,12 @@ def adjust_position_leverage():
 @rate_limiter(20) # Límite de 20 llamadas por segundo
 def set_position_stop_loss(sl_price):
     request_path = "/futures/set-position-stop-loss"
-    params = {"market": "BTCUSDT", 
+    data = {"market": "BTCUSDT", 
               "market_type": "FUTURES",
               "stop_loss_type": "latest_price",
               "stop_loss_price": sl_price
               }
-    data_json = json.dumps(params)
+    data_json = json.dumps(data)
 
     logging.info(f"📤 Enviando stop loss: {data_json}")
     print(f"📤 Enviando stop loss: {data_json}")  # 👈 Ver en logs de Render
@@ -280,7 +280,7 @@ def set_position_stop_loss(sl_price):
         response = request_client.request(
             "POST",
             f"{request_client.url}{request_path}",
-            params=params,
+            data=data_json,
         )
 
         logging.info(f"✅ Respuesta HTTP: {response.status_code}")
@@ -308,12 +308,12 @@ def set_position_stop_loss(sl_price):
 @rate_limiter(20) # Límite de 20 llamadas por segundo
 def set_position_take_profit(tp_price):
     request_path = "/futures/set-position-take-profit"
-    params = {"market": "BTCUSDT", 
+    data = {"market": "BTCUSDT", 
               "market_type": "FUTURES",
               "take_profit_type": "latest_price",
               "take_profit_price": tp_price
               }
-    data_json = json.dumps(params)
+    data_json = json.dumps(data)
 
     logging.info(f"📤 Enviando stop loss: {data_json}")
     print(f"📤 Enviando stop loss: {data_json}")  # 👈 Ver en logs de Render
@@ -322,7 +322,7 @@ def set_position_take_profit(tp_price):
         response = request_client.request(
             "POST",
             f"{request_client.url}{request_path}",
-            params=params,
+            data=data_json,
         )
 
         logging.info(f"✅ Respuesta HTTP: {response.status_code}")

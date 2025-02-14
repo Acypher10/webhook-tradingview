@@ -187,7 +187,7 @@ def close_position():
     data = {"market": "BTCUSDT",
               "market_type": "FUTURES",
               "type": "market",
-              "amount": "null",
+              "amount": "",
               "client_id": "user1",
               "is_hide": True
               }

@@ -154,7 +154,7 @@ def current_position():
 
     try:
         response = request_client.request(
-            "POST",
+            "GET",
             "{url}{request_path}".format(url=request_client.url, request_path=request_path),
             data=data_json,
         )

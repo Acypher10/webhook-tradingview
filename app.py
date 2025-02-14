@@ -143,9 +143,7 @@ def get_futures_balance():
 def current_position():
     request_path = "/futures/pending-position"
     data = {"market": "BTCUSDT",
-              "market_type": "FUTURES",
-              "page": 1,
-              "limit": 10
+              "market_type": "FUTURES"
               }
     data_json = json.dumps(data)
     
@@ -187,7 +185,7 @@ def close_position():
     data = {"market": "BTCUSDT",
               "market_type": "FUTURES",
               "type": "market",
-              "amount": "",
+              "amount": None,
               "client_id": "user1",
               "is_hide": True
               }

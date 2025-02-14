@@ -149,8 +149,8 @@ def current_position():
               }
     data_json = json.dumps(data)
     
-    logging.info(f"📤 Cerrando posiciones en CoinEx: {data_json}")
-    print(f"📤 Cerrando posiciones en CoinEx: {data_json}")
+    logging.info(f"📤 Consultando posición en CoinEx: {data_json}")
+    print(f"📤 Consultando posición en CoinEx: {data_json}")
 
     try:
         response = request_client.request(
@@ -187,7 +187,9 @@ def close_position():
     data = {"market": "BTCUSDT",
               "market_type": "FUTURES",
               "type": "market",
-              "amount": "null"
+              "amount": "null",
+              "client_id": "user1",
+              "is_hide": True
               }
     data_json = json.dumps(data)
     

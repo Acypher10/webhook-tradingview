@@ -140,11 +140,54 @@ def get_futures_balance():
     return response
 
 @rate_limiter(20) # Límite de 20 llamadas por segundo
+def current_position():
+    request_path = "/futures/pending-position"
+    data = {"market": "BTCUSDT",
+              "market_type": "FUTURES",
+              "page": 1,
+              "limit": 10
+              }
+    data_json = json.dumps(data)
+    
+    logging.info(f"📤 Cerrando posiciones en CoinEx: {data_json}")
+    print(f"📤 Cerrando posiciones en CoinEx: {data_json}")
+
+    try:
+        response = request_client.request(
+            "POST",
+            "{url}{request_path}".format(url=request_client.url, request_path=request_path),
+            data=data_json,
+        )
+
+        logging.info(f"✅ Respuesta HTTP: {response.status_code}")
+        print(f"✅ Respuesta HTTP: {response.status_code}")
+
+        try:
+            response_data = response.json()
+            logging.info(f"📌 Respuesta JSON de CoinEx: {response_data}")
+            print(f"📌 Respuesta JSON de CoinEx: {response_data}")
+
+            if "code" in response_data and response_data["code"] != 0:
+                logging.error(f"❌ Error de CoinEx: {response_data['message']}")
+                print(f"❌ Error de CoinEx: {response_data['message']}")
+
+        except ValueError:
+            logging.error(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")
+            print(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"🚨 Error de conexión con CoinEx: {str(e)}")
+        print(f"🚨 Error de conexión con CoinEx: {str(e)}")
+
+    return response
+
+@rate_limiter(20) # Límite de 20 llamadas por segundo
 def close_position():
     request_path = "/futures/close-position"
     data = {"market": "BTCUSDT",
               "market_type": "FUTURES",
-              "type": "market"
+              "type": "market",
+              "amount": "null"
               }
     data_json = json.dumps(data)
     
@@ -226,7 +269,7 @@ def adjust_position_leverage():
     request_path = "/futures/adjust-position-leverage"
     data = {"market": "BTCUSDT", 
               "market_type": "FUTURES",
-              "margin mode": "isolated",
+              "margin_mode": "isolated",
               "leverage": 10
               }
     data_json = json.dumps(data)
@@ -447,6 +490,13 @@ def run_code():
         print("🔄 Ejecutando run_code()...")  # 👈 Verifica si entra aquí
 
         if last_alert:
+            
+            print(f"🚀 Consultando posición")  # 👈 Verifica los datos antes de enviar
+            
+            response_0 = current_position()
+            
+            print(f"🔍 Respuesta de current_position: {response_0}")  # 👈 Ver si se devuelve algo
+            
             print(f"🚀 Cancelando posición")  # 👈 Verifica los datos antes de enviar
             
             response_1 = close_position()
@@ -488,6 +538,12 @@ def run_code():
             )
 
             print(f"🔍 Respuesta de set_position_take_profit: {response_6}")  # 👈 Ver si se devuelve algo
+
+            if response_0:
+                try:
+                    print(f"✅ Respuesta JSON de CoinEx: {response_1.json()}")  # 👈 Imprime la respuesta JSON real
+                except Exception as e:
+                    print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_1.text}")  # 👈 Ver error real
 
             if response_1:
                 try:

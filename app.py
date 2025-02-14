@@ -139,11 +139,11 @@ def get_futures_balance():
     )
     return response
 
-@rate_limiter(20) # Límite de 20 llamadas por segundo
+@rate_limiter(10) # Límite de 10 llamadas por segundo
 def current_position():
     request_path = "/futures/pending-position"
     data = {"market": "BTCUSDT",
-              "market_type": "FUTURES"
+            "market_type": "FUTURES"
               }
     data_json = json.dumps(data)
     

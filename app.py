@@ -516,7 +516,7 @@ def run_code():
                     data = response_data.get("data", [])
 
                     if isinstance(data, list) and len(data) > 0:  
-                        balance = float(data[0].get("available_balance", 0))  # Acceder al primer objeto de la lista
+                        balance = float(data[0].get("available", 0))  # Acceder al primer objeto de la lista
                         print(f"✅ Balance disponible: {balance}")
                     else:
                         print(f"⚠️ La respuesta de CoinEx no tiene datos de balance.")

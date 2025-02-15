@@ -440,19 +440,32 @@ def webhook():
     data = request.json
     print("📩 Alerta recibida:", data)
 
-    # Obtener balance disponible antes de calcular el amount
-    response_0 = get_futures_balance()
-    
-    if response_0.status_code == 200:
-        response_data = response_0.json()
-        if "code" in response_data and response_data["code"] == 0:
-            balance = response_data.get("data", {}).get("available", 0)
+    # Obtener balance de CoinEx
+    response = get_futures_balance()
+
+    if response.status_code == 200:
+        response_data = response.json()
+
+        if response_data.get("code") == 0:
+            balance_data = response_data.get("data", [])
+
+            if isinstance(balance_data, list) and len(balance_data) > 0:
+                first_entry = balance_data[0]  # ✅ Accede al primer elemento
+                if isinstance(first_entry, dict):
+                    balance = float(first_entry.get("available", 0))
+                    print(f"✅ Balance disponible: {balance}")
+                else:
+                    print("⚠️ Error: El primer elemento de 'data' no es un diccionario válido.")
+                    return jsonify({"error": "Formato inválido en balance"}), 500
+            else:
+                print(f"⚠️ La respuesta de CoinEx no tiene datos de balance.")
+                return jsonify({"error": "Sin datos de balance"}), 500
         else:
-            print(f"❌ Error en la respuesta de CoinEx: {response_data.get('message', 'Desconocido')}")
-            return jsonify({"status": "error", "message": "Error al obtener balance"}), 400
+            print(f"❌ Error en respuesta de CoinEx: {response_data.get('message', 'Desconocido')}")
+            return jsonify({"error": "Error en respuesta de CoinEx"}), 500
     else:
-        print(f"❌ Error HTTP al obtener balance: {response_0.status_code}")
-        return jsonify({"status": "error", "message": "Error al obtener balance"}), 400
+        print(f"❌ Error HTTP al obtener balance: {response.status_code}")
+        return jsonify({"error": "Error HTTP al obtener balance"}), response.status_code
 
     # Convertir amount a número y verificar que sea válido
     amount = float(data.get("amount", 0))
@@ -516,8 +529,13 @@ def run_code():
                     data = response_data.get("data", [])
 
                     if isinstance(data, list) and len(data) > 0:  
-                        balance = float(data[0].get("available", 0))  # Acceder al primer objeto de la lista
-                        print(f"✅ Balance disponible: {balance}")
+                        first_entry = data[0]
+                        if isinstance(first_entry, dict):
+                            balance = float(first_entry.get("available", 0))  # Acceder al primer objeto de la lista
+                            print(f"✅ Balance disponible: {balance}")
+                        else:
+                            print("⚠️ El primer elemento de 'data' no es un diccionario válido.")
+                            return
                     else:
                         print(f"⚠️ La respuesta de CoinEx no tiene datos de balance.")
                         return

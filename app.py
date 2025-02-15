@@ -446,7 +446,7 @@ def webhook():
     if response_0.status_code == 200:
         response_data = response_0.json()
         if "code" in response_data and response_data["code"] == 0:
-            balance = response_data.get("data", {}).get("available_balance", 0)
+            balance = response_data.get("data", {}).get("available", 0)
         else:
             print(f"❌ Error en la respuesta de CoinEx: {response_data.get('message', 'Desconocido')}")
             return jsonify({"status": "error", "message": "Error al obtener balance"}), 400

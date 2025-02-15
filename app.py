@@ -133,11 +133,42 @@ def get_futures_market():
 @rate_limiter(10) # Límite de 10 llamadas por segundo
 def get_futures_balance():
     request_path = "/assets/futures/balance"
-    response = request_client.request(
-        "GET",
-        "{url}{request_path}".format(url=request_client.url, request_path=request_path),
-    )
+    logging.info(f"📤 Obteniendo balance en CoinEx")
+    print(f"📤 Obteniendo balance en CoinEx")
+
+    try:
+        response = request_client.request(
+            "GET",
+            "{url}{request_path}".format(url=request_client.url, request_path=request_path),
+        )
+
+        logging.info(f"✅ Respuesta HTTP: {response.status_code}")
+        print(f"✅ Respuesta HTTP: {response.status_code}")
+
+        try:
+            response_data = response.json()
+            logging.info(f"📌 Respuesta JSON de CoinEx: {response_data}")
+            print(f"📌 Respuesta JSON de CoinEx: {response_data}")
+
+            if "code" in response_data and response_data["code"] != 0:
+                logging.error(f"❌ Error de CoinEx: {response_data['message']}")
+                print(f"❌ Error de CoinEx: {response_data['message']}")
+
+        except ValueError:
+            logging.error(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")
+            print(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"🚨 Error de conexión con CoinEx: {str(e)}")
+        print(f"🚨 Error de conexión con CoinEx: {str(e)}")
+
     return response
+
+def calculate_order_amount(balance, price):
+    """Calcula la cantidad de contratos o activos a comprar con el balance disponible"""
+    order_size = min(balance, 100)  # Usa hasta 100 USDT o el balance disponible
+    amount = order_size / price  # Convertir USDT a cantidad de BTC, ETH, etc.
+    return round(amount, 6)  # Redondear para evitar errores de precisión
 
 @rate_limiter(20) # Límite de 20 llamadas por segundo
 def close_position():
@@ -352,6 +383,10 @@ def set_position_take_profit(tp_price):
 
 @rate_limiter(20)  # Límite de 20 llamadas por segundo
 def send_order_to_coinex(market, side, amount):
+    # Para órdenes de venta (SELL), el amount debe ser negativo
+    if side.lower() == "sell":
+        amount = -abs(amount)  # Asegurar que amount sea negativo
+    
     request_path = "/futures/order"
     data = {
         "market": market,
@@ -405,14 +440,32 @@ def webhook():
     data = request.json
     print("📩 Alerta recibida:", data)
 
+    # Obtener balance disponible antes de calcular el amount
+    response_0 = get_futures_balance()
+    
+    if response_0.status_code == 200:
+        response_data = response_0.json()
+        if "code" in response_data and response_data["code"] == 0:
+            balance = response_data.get("data", {}).get("available_balance", 0)
+        else:
+            print(f"❌ Error en la respuesta de CoinEx: {response_data.get('message', 'Desconocido')}")
+            return jsonify({"status": "error", "message": "Error al obtener balance"}), 400
+    else:
+        print(f"❌ Error HTTP al obtener balance: {response_0.status_code}")
+        return jsonify({"status": "error", "message": "Error al obtener balance"}), 400
+
     # Convertir amount a número y verificar que sea válido
     amount = float(data.get("amount", 0))
-    if amount <= 0:
-        print("⚠️ Orden ignorada: El monto debe ser mayor a 0. Ajustando a un valor estimado...")
-        amount = 0.001  # 👈 Ajusta esto según el tamaño mínimo permitido.
-
     price = float(data.get("price", 50000))
     side = data.get("side", "buy").lower()
+
+    # Calcular amount basado en el balance disponible
+    if amount <= 0:
+        print("⚠️ Orden ignorada: El monto debe ser mayor a 0. Ajustando según balance...")
+        amount = balance / price  # Ajuste dinámico según el balance disponible
+
+    if side == "sell":
+        amount = -abs(amount)  # Asegurar que las órdenes de venta sean negativas
 
     # Calcular SL y TP según el lado de la orden
     if side == "buy":
@@ -440,7 +493,6 @@ def webhook():
     return jsonify({"status": "success", "message": "Alerta recibida"}), 200
 
 
-
 def run_code():
     global last_alert
 
@@ -451,13 +503,43 @@ def run_code():
 
         if last_alert:
             
-            print(f"🚀 Cancelando posición")  # 👈 Verifica los datos antes de enviar
+            print(f"🚀 Obteniendo balance...")  # 👈 Verifica los datos antes de enviar
+            
+            response_0 = get_futures_balance()
+            
+            print(f"🔍 Respuesta de close_position: {response_0}")  # 👈 Ver si se devuelve algo
+
+            if response_0.status_code == 200:
+                response_data = response_0.json()
+                if response_data.get("code") == 0:
+                    balance = response_data.get("data", {}).get("available_balance", 0)
+                    print(f"✅ Balance disponible: {balance}")
+                else:
+                    print(f"❌ Error en la respuesta de CoinEx: {response_data.get('message', 'Desconocido')}")
+                    return
+            else:
+                print(f"❌ Error HTTP al obtener balance: {response_0.status_code}")
+                return
+
+            # Ajustar amount según balance y lado de la orden
+            amount = last_alert["amount"]
+
+            if amount <= 0:
+                print("⚠️ Ajustando monto basado en balance...")
+                amount = balance / last_alert["price"]
+
+            if last_alert["side"] == "sell":
+                amount = -abs(amount)  # Asegurar que la orden de venta sea negativa
+
+            last_alert["amount"] = amount  # Actualizar amount en la alerta
+
+            print(f"🚀 Cancelando posición...")  # 👈 Verifica los datos antes de enviar
             
             response_1 = close_position()
             
             print(f"🔍 Respuesta de close_position: {response_1}")  # 👈 Ver si se devuelve algo
             
-            print(f"🚀 Cancelando todas las ordenes")  # 👈 Verifica los datos antes de enviar
+            print(f"🚀 Cancelando todas las órdenes...")  # 👈 Verifica los datos antes de enviar
             
             response_2 = cancel_all_orders(
                 last_alert["side"]
@@ -465,7 +547,7 @@ def run_code():
             
             print(f"🔍 Respuesta de cancel_all_orders: {response_2}")  # 👈 Ver si se devuelve algo
 
-            print(f"🚀 Ajustando apalancamiento")  # 👈 Verifica los datos antes de enviar
+            print(f"🚀 Ajustando apalancamiento...")  # 👈 Verifica los datos antes de enviar
             
             response_3 = adjust_position_leverage()
             

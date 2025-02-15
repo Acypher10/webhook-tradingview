@@ -472,14 +472,6 @@ def webhook():
     price = float(data.get("price", 50000))
     side = data.get("side", "buy").lower()
 
-    # Calcular amount basado en el balance disponible
-    if amount <= 0:
-        print("⚠️ Orden ignorada: El monto debe ser mayor a 0. Ajustando según balance...")
-        amount = balance / price  # Ajuste dinámico según el balance disponible
-
-    if side == "sell":
-        amount = -abs(amount)  # Asegurar que las órdenes de venta sean negativas
-
     # Calcular SL y TP según el lado de la orden
     if side == "buy":
         sl_price = price * 0.99  # -1%

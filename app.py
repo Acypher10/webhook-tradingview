@@ -516,7 +516,7 @@ def run_code():
                     data = response_data.get("data", [])
 
                     if isinstance(data, list) and len(data) > 0:  
-                        balance = data[0].get("available_balance", 0)  # Acceder al primer objeto de la lista
+                        balance = float(data[0].get("available_balance", 0))  # Acceder al primer objeto de la lista
                         print(f"✅ Balance disponible: {balance}")
                     else:
                         print(f"⚠️ La respuesta de CoinEx no tiene datos de balance.")
@@ -531,14 +531,17 @@ def run_code():
             # Ajustar amount según balance y lado de la orden
             amount = last_alert["amount"]
 
-            if amount <= 0:
-                print("⚠️ Ajustando monto basado en balance...")
-                amount = balance / last_alert["price"]
+            # ✅ Ajustar cantidad según balance y tipo de operación
+            if last_alert["side"] == "buy":
+                amount = balance / float(last_alert["price"])  # Compra: usar balance para obtener cantidad
+            elif last_alert["side"] == "sell":
+                balance = -abs(balance)
+                amount = balance / float(last_alert["price"])  # Venta: usar todo el balance disponible
 
-            if last_alert["side"] == "sell":
-                amount = -abs(amount)  # Asegurar que la orden de venta sea negativa
+            # Actualizar la alerta con el nuevo amount
+            last_alert["amount"] = round(amount, 8)  # Redondear para evitar errores de precisión
 
-            last_alert["amount"] = amount  # Actualizar amount en la alerta
+            print(f"🚀 Monto ajustado para la orden: {last_alert['amount']} {last_alert['market']}")
 
             print(f"🚀 Cancelando posición...")  # 👈 Verifica los datos antes de enviar
             

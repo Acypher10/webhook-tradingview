@@ -511,9 +511,16 @@ def run_code():
 
             if response_0.status_code == 200:
                 response_data = response_0.json()
+
                 if response_data.get("code") == 0:
-                    balance = response_data.get("data", {}).get("available_balance", 0)
-                    print(f"✅ Balance disponible: {balance}")
+                    data = response_data.get("data", [])
+
+                    if isinstance(data, list) and len(data) > 0:  
+                        balance = data[0].get("available_balance", 0)  # Acceder al primer objeto de la lista
+                        print(f"✅ Balance disponible: {balance}")
+                    else:
+                        print(f"⚠️ La respuesta de CoinEx no tiene datos de balance.")
+                        return
                 else:
                     print(f"❌ Error en la respuesta de CoinEx: {response_data.get('message', 'Desconocido')}")
                     return

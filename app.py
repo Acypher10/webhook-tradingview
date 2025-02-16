@@ -451,10 +451,12 @@ def webhook():
 
             if isinstance(balance_data, list) and len(balance_data) > 0:
                 first_entry = balance_data[0]  # ✅ Accede al primer elemento
-                third_entry = balance_data[3]  # ✅ Accede al tercer elemento
-                if isinstance(first_entry, third_entry, dict):
-                    balance = float(first_entry.get("available", 0))+ float(first_entry.get("margin", 0)) 
-                    print(f"✅ Balance disponible: {balance}")
+
+                if isinstance(first_entry, dict):
+                    balance = float(first_entry.get("available", 0))
+                    margin = float(first_entry.get("margin", 0))  # ✅ Extrae margin correctamente
+                    total_balance = balance + margin  # ✅ Balance total sumando margin
+                    print(f"✅ Balance disponible: {balance}, Margin: {margin}, Total: {total_balance}")
                 else:
                     print("⚠️ Error: El primer elemento de 'data' no es un diccionario válido.")
                     return jsonify({"error": "Formato inválido en balance"}), 500
@@ -522,11 +524,13 @@ def run_code():
                     data = response_data.get("data", [])
 
                     if isinstance(data, list) and len(data) > 0:  
-                        first_entry = data[0]
-                        third_entry = data[3]
-                        if isinstance(first_entry, third_entry,dict):
-                            balance = float(first_entry.get("available", 0)) + float(third_entry.get("margin", 0))  # Acceder al primer objeto de la lista
-                            print(f"✅ Balance disponible: {balance}")
+                        first_entry = data[0]  # ✅ Accede al primer elemento
+
+                        if isinstance(first_entry, dict):
+                            balance = float(first_entry.get("available", 0))
+                            margin = float(first_entry.get("margin", 0))  # ✅ Extrae margin correctamente
+                            total_balance = balance + margin  # ✅ Balance total sumando margin
+                            print(f"✅ Balance disponible: {balance}, Margin: {margin}, Total: {total_balance}")
                         else:
                             print("⚠️ El primer elemento de 'data' no es un diccionario válido.")
                             return
@@ -545,9 +549,12 @@ def run_code():
 
             # ✅ Ajustar cantidad según balance y tipo de operación
             if last_alert["side"] == "buy":
-                amount = (balance / float(last_alert["price"]))*10  # Compra: usar balance para obtener cantidad
+                amount = (total_balance / float(last_alert["price"])) * 10  # Compra: usar balance para obtener cantidad
             elif last_alert["side"] == "sell":
-                amount = (balance / float(last_alert["price"]))*10  # Venta: usar todo el balance disponible
+                amount = (total_balance / float(last_alert["price"])) * 10  # Venta: usar todo el balance disponible
+            else:
+                print("⚠️ Error: 'side' inválido. Debe ser 'buy' o 'sell'.")
+                return
 
             # Actualizar la alerta con el nuevo amount
             last_alert["amount"] = round(amount, 8)  # Redondear para evitar errores de precisión
@@ -639,7 +646,6 @@ def run_code():
 
     except Exception as e:
         print(f"🔥 Error en run_code(): {str(e)}")
-
 
     except Exception as e:
         print("Error:", str(e))

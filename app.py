@@ -543,10 +543,10 @@ def run_code():
 
             # ✅ Ajustar cantidad según balance y tipo de operación
             if last_alert["side"] == "buy":
-                amount = balance / float(last_alert["price"])  # Compra: usar balance para obtener cantidad
+                amount = (balance / float(last_alert["price"]))*10  # Compra: usar balance para obtener cantidad
             elif last_alert["side"] == "sell":
                 balance = -abs(balance)
-                amount = balance / float(last_alert["price"])  # Venta: usar todo el balance disponible
+                amount = (balance / float(last_alert["price"]))*10  # Venta: usar todo el balance disponible
 
             # Actualizar la alerta con el nuevo amount
             last_alert["amount"] = round(amount, 8)  # Redondear para evitar errores de precisión

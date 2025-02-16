@@ -454,10 +454,6 @@ def send_order_to_coinex(market, side, amount):
 
     return response
 
-# Iniciar el hilo de procesamiento
-processing_thread = threading.Thread(target=process_alerts, daemon=True)
-processing_thread.start() 
-
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json

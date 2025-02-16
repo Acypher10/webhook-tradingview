@@ -107,7 +107,10 @@ request_client = RequestsClient()
 # Crear una cola para almacenar las señales
 signal_queue = queue.Queue()
 
-def process_signals():
+# Diccionario para almacenar respuestas de cada alerta procesada
+responses_dict = {}
+
+def process_alerts():
     """Hilo que procesa señales en orden"""
     while True:
         alert = signal_queue.get()  # Espera a recibir una señal
@@ -120,8 +123,9 @@ def process_signals():
         print(f"🔄 Procesando señal: {alert}")
         
         responses = run_code()  # Ejecuta run_code con la señal actual
+        responses_dict[alert["client_id"]] = responses
 
-        print(f"✅ Señal procesada: {responses}")
+        print(f"✅ Señal procesada con respuestas: {responses}")
         signal_queue.task_done()
 
 # Limitador de tasa (Máximo 20 llamadas por segundo)
@@ -451,7 +455,7 @@ def send_order_to_coinex(market, side, amount):
     return response
 
 # Iniciar el hilo de procesamiento
-processing_thread = threading.Thread(target=process_signals, daemon=True)
+processing_thread = threading.Thread(target=process_alerts, daemon=True)
 processing_thread.start() 
 
 @app.route('/webhook', methods=['POST'])
@@ -519,42 +523,49 @@ def webhook():
     }
 
     print(f"🚀 Orden recibida: {last_alert}")
-    
+
+     # Esperar a que se procese la alerta y devolver la respuesta HTTP completa
+    while data["client_id"] not in responses_dict:
+        time.sleep(0.5)  # Esperar a que se procese
+
+    response_data = responses_dict.pop(data["client_id"])  # Obtener y eliminar la respuesta almacenada    
 
     return jsonify({"status": "success", "message": "Alerta recibida"}), 200
 
 def run_code():
+    global last_alert
+    
     while True:
         try:
             data = signal_queue.get()  # ⬅️ Espera hasta recibir una nueva señal
+            client_id = data.get("client_id", "default")
+            responses =[]
+
             print(f"🏁 Procesando señal: {data}")
 
             # Obtener balance antes de operar
             print("🚀 Obteniendo balance...")
             response_0 = get_futures_balance()
-            print(f"🔍 Respuesta balance: {response_0}")
+            responses.append({"balance": response_0.json()})
 
-            if response_0.status_code == 200:
-                response_data = response_0.json()
-                if response_data.get("code") == 0:
-                    balance_data = response_data.get("data", [])
-                    if isinstance(balance_data, list) and len(balance_data) > 0:
-                        first_entry = balance_data[0]
-                        balance = float(first_entry.get("available", 0))
-                        margin = float(first_entry.get("margin", 0))
-                        total_balance = balance + margin
-                        print(f"✅ Balance disponible: {balance}, Margin: {margin}, Total: {total_balance}")
-                    else:
-                        print("⚠️ Error en datos de balance.")
-                        signal_queue.task_done()
-                        continue
+            if response_0.status_code == 200 and response_0.json().get("code") == 0:
+                balance_data = response_0.json().get("data", [])
+                if isinstance(balance_data, list) and len(balance_data) > 0:
+                    first_entry = balance_data[0]
+                    balance = float(first_entry.get("available", 0))
+                    margin = float(first_entry.get("margin", 0))
+                    total_balance = balance + margin
+                    print(f"✅ Balance disponible: {balance}, Margin: {margin}, Total: {total_balance}")
                 else:
-                    print(f"❌ Error en respuesta de CoinEx: {response_data.get('message', 'Desconocido')}")
+                    return {"error": "Balance inválido"}
                     signal_queue.task_done()
+                    responses_dict[client_id] = responses
                     continue
             else:
                 print(f"❌ Error HTTP al obtener balance: {response_0.status_code}")
+                responses.append({"error": "Error al obtener balance"})
                 signal_queue.task_done()
+                responses_dict[client_id] = responses
                 continue
 
             # Calcular monto según balance y tipo de orden
@@ -573,72 +584,28 @@ def run_code():
             }
             print(f"🚀 Orden preparada: {alert}")
 
-            # Cerrar posición previa
-            print("🚀 Cancelando posición previa...")
-            response_1 = close_position()
-            print(f"🔍 Respuesta close_position: {response_1}")
-
-            # Cancelar órdenes abiertas
-            print("🚀 Cancelando todas las órdenes...")
-            response_2 = cancel_all_orders(side)
-            print(f"🔍 Respuesta cancel_all_orders: {response_2}")
-
-            # Ajustar apalancamiento
-            print("🚀 Ajustando apalancamiento...")
-            response_3 = adjust_position_leverage()
-            print(f"🔍 Respuesta adjust_position_leverage: {response_3}")
-
-            # Enviar orden
-            print("🚀 Enviando orden...")
-            response_4 = send_order_to_coinex(
-                alert["market"], alert["side"], alert["amount"]
-            )
-            print(f"🔍 Respuesta send_order_to_coinex: {response_4}")
-
-            # Configurar SL y TP
-            response_5 = set_position_stop_loss(alert["sl_price"])
-            print(f"🔍 Respuesta SL: {response_5}")
-
-            response_6 = set_position_take_profit(alert["tp_price"])
-            print(f"🔍 Respuesta TP: {response_6}")
-
-            if response_1:
+            # Ejecución de órdenes y recolección de respuestas
+            for step, (func, label) in enumerate([
+                (close_position, "close_position"),
+                (lambda: cancel_all_orders(side), "cancel_all_orders"),
+                (adjust_position_leverage, "adjust_leverage"),
+                (lambda: send_order_to_coinex(alert["market"], alert["side"], alert["amount"]), "send_order"),
+                (lambda: set_position_stop_loss(alert["sl_price"]), "stop_loss"),
+                (lambda: set_position_take_profit(alert["tp_price"]), "take_profit"),
+            ]):
+                print(f"🚀 Ejecutando {label}...")
                 try:
-                    print(f"✅ Respuesta JSON de CoinEx: {response_1.json()}")  # 👈 Imprime la respuesta JSON real
+                    response = func()
+                    responses.append({label: response.json()})
                 except Exception as e:
-                    print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_1.text}")  # 👈 Ver error real
+                    responses.append({label: f"❌ Error: {str(e)}"})
 
-            if response_2:
-                try:
-                    print(f"✅ Respuesta JSON de CoinEx: {response_2.json()}")  # 👈 Imprime la respuesta JSON real
-                except Exception as e:
-                    print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_2.text}")  # 👈 Ver error real
+            last_alert = None # Limpiar alerta después de usarla
 
-            if response_3:
-                try:
-                    print(f"✅ Respuesta JSON de CoinEx: {response_3.json()}")  # 👈 Imprime la respuesta JSON real
-                except Exception as e:
-                    print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_3.text}")  # 👈 Ver error real
+            # Guardar respuestas para el webhook
+            responses_dict[client_id] = responses
 
-            if response_4:
-                try:
-                    print(f"✅ Respuesta JSON de CoinEx: {response_4.json()}")  # 👈 Imprime la respuesta JSON real
-                except Exception as e:
-                    print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_4.text}")  # 👈 Ver error real
-
-            if response_5:
-                try:
-                    print(f"✅ Respuesta JSON de CoinEx: {response_5.json()}")  # 👈 Imprime la respuesta JSON real
-                except Exception as e:
-                    print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_5.text}")  # 👈 Ver error real
-
-            if response_6:
-                try:
-                    print(f"✅ Respuesta JSON de CoinEx: {response_6.json()}")  # 👈 Imprime la respuesta JSON real
-                except Exception as e:
-                    print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_6.text}")  # 👈 Ver error real
-
-            # Finalizar procesamiento de la señal
+            # Liberar la señal de la cola
             signal_queue.task_done()
 
         except Exception as e:

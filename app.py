@@ -524,8 +524,6 @@ def webhook():
 
     return jsonify({"status": "success", "message": "Alerta recibida"}), 200
 
-signal_queue = queue.Queue()
-
 def run_code():
     while True:
         try:

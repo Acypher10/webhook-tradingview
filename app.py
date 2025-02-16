@@ -110,15 +110,18 @@ signal_queue = queue.Queue()
 def process_signals():
     """Hilo que procesa señales en orden"""
     while True:
-        signal = signal_queue.get()  # Espera a recibir una señal
-        if signal is None:
+        alert = signal_queue.get()  # Espera a recibir una señal
+        if alert is None:
             break  # Permite salir del bucle si se recibe None
-        
-        print(f"🔄 Procesando señal: {signal}")
-        
-        run_code()  # Ejecuta run_code con la señal actual
 
-        print(f"✅ Señal procesada: {signal}")
+        global last_alert
+        last_alert = alert
+        
+        print(f"🔄 Procesando señal: {alert}")
+        
+        responses = run_code()  # Ejecuta run_code con la señal actual
+
+        print(f"✅ Señal procesada: {responses}")
         signal_queue.task_done()
 
 # Limitador de tasa (Máximo 20 llamadas por segundo)
@@ -449,14 +452,10 @@ def send_order_to_coinex(market, side, amount):
 
 # Iniciar el hilo de procesamiento
 processing_thread = threading.Thread(target=process_signals, daemon=True)
-processing_thread.start()
-
-# Variable global para almacenar la última alerta recibida
-last_alert = None  
+processing_thread.start() 
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    global last_alert
     data = request.json
     print("📩 Alerta recibida:", data)
 

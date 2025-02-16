@@ -613,12 +613,10 @@ def run_code():
             signal_queue.task_done()
             time.sleep(3)  # Pequeña pausa para evitar loops de error
 
-# Iniciar el hilo que procesará las señales en segundo plano
-threading.Thread(target=run_code, daemon=True).start()
-
 if __name__ == "__main__":
     # Iniciar el procesador de señales en un hilo separado
-    threading.Thread(target=run_code, daemon=True).start()
+    thread = threading.Thread(target=run_code, daemon=True)
+    thread.start()
     
     # Iniciar la API Flask
     app.run(host="0.0.0.0", port=5000)

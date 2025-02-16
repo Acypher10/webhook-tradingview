@@ -451,8 +451,9 @@ def webhook():
 
             if isinstance(balance_data, list) and len(balance_data) > 0:
                 first_entry = balance_data[0]  # ✅ Accede al primer elemento
-                if isinstance(first_entry, dict):
-                    balance = float(first_entry.get("available", 0))
+                third_entry = balance_data[3]  # ✅ Accede al tercer elemento
+                if isinstance(first_entry, third_entry, dict):
+                    balance = float(first_entry.get("available", 0))+ float(first_entry.get("margin", 0)) 
                     print(f"✅ Balance disponible: {balance}")
                 else:
                     print("⚠️ Error: El primer elemento de 'data' no es un diccionario válido.")

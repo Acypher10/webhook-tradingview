@@ -12,6 +12,9 @@ from urllib.parse import urlparse, urlencode
 import os
 from dotenv import load_dotenv
 import logging
+import queue
+import threading
+import time
 
 logging.basicConfig(level=logging.INFO)
 
@@ -101,6 +104,23 @@ class RequestsClient(object):
         return response
 
 request_client = RequestsClient()
+
+# Crear una cola para almacenar las señales
+signal_queue = queue.Queue()
+
+def process_signals():
+    """Hilo que procesa señales en orden"""
+    while True:
+        signal = signal_queue.get()  # Espera a recibir una señal
+        if signal is None:
+            break  # Permite salir del bucle si se recibe None
+        
+        print(f"🔄 Procesando señal: {signal}")
+        
+        run_code()  # Ejecuta run_code con la señal actual
+
+        print(f"✅ Señal procesada: {signal}")
+        signal_queue.task_done()
 
 # Limitador de tasa (Máximo 20 llamadas por segundo)
 def rate_limiter(max_calls_per_second):
@@ -428,6 +448,10 @@ def send_order_to_coinex(market, side, amount):
 
     return response
 
+# Iniciar el hilo de procesamiento
+processing_thread = threading.Thread(target=process_signals, daemon=True)
+processing_thread.start()
+
 # Variable global para almacenar la última alerta recibida
 last_alert = None  
 
@@ -436,6 +460,9 @@ def webhook():
     global last_alert
     data = request.json
     print("📩 Alerta recibida:", data)
+
+    # Agregar la señal a la cola para que se procese en orden
+    signal_queue.put(data)
 
     # Obtener balance de CoinEx
     response = get_futures_balance()

@@ -522,8 +522,9 @@ def run_code():
 
                     if isinstance(data, list) and len(data) > 0:  
                         first_entry = data[0]
-                        if isinstance(first_entry, dict):
-                            balance = float(first_entry.get("available", 0))  # Acceder al primer objeto de la lista
+                        third_entry = data[3]
+                        if isinstance(first_entry, third_entry,dict):
+                            balance = float(first_entry.get("available", 0)) + float(third_entry.get("margin", 0))  # Acceder al primer objeto de la lista
                             print(f"✅ Balance disponible: {balance}")
                         else:
                             print("⚠️ El primer elemento de 'data' no es un diccionario válido.")

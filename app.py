@@ -12,9 +12,6 @@ from urllib.parse import urlparse, urlencode
 import os
 from dotenv import load_dotenv
 import logging
-import queue
-import asyncio
-import threading
 
 logging.basicConfig(level=logging.INFO)
 
@@ -104,100 +101,6 @@ class RequestsClient(object):
         return response
 
 request_client = RequestsClient()
-
-# Cola de alertas asincrónica
-alert_queue = asyncio.Queue()
-
-responses_dict={}
-
-async def process_alert(alert):
-    """
-    Procesa una alerta de trading, ejecutando cada paso de manera asincrónica.
-    """
-    global last_alert
-    last_alert = alert
-
-    client_id = alert.get("client_id")  # Asegura que la alerta tenga un ID único
-    if not client_id:
-        print("⚠️ Alerta sin 'client_id', no se podrá devolver respuesta.")
-        return
-
-    print("🏁 Iniciando procesamiento de alerta:", alert)
-
-    try:
-        print("🚀 Obteniendo balance...")
-        response_0 = await asyncio.to_thread(get_futures_balance)
-
-        if response_0.status_code == 200:
-            response_data = response_0.json()
-            data = response_data.get("data", [])
-            if isinstance(data, list) and data:
-                first_entry = data[0]
-                balance = float(first_entry.get("available", 0))
-                margin = float(first_entry.get("margin", 0))
-                total_balance = balance + margin
-                print(f"✅ Balance disponible: {balance}, Margin: {margin}, Total: {total_balance}")
-            else:
-                print(f"⚠️ La respuesta de CoinEx no tiene datos de balance.")
-                responses_dict[client_id] = {"status": "error", "message": "Sin datos de balance"}
-                return
-        else:
-            print(f"❌ Error HTTP al obtener balance: {response_0.status_code}")
-            responses_dict[client_id] = {"status": "error", "message": "Error HTTP en balance"}
-            return
-
-        # Ajustar amount según balance
-        amount = last_alert["amount"]
-        if last_alert["side"] in ["buy", "sell"]:
-            amount = (total_balance / float(last_alert["price"])) * 10
-        else:
-            print("⚠️ Error: 'side' inválido. Debe ser 'buy' o 'sell'.")
-            return
-        last_alert["amount"] = round(amount, 8)
-
-        print(f"🚀 Monto ajustado para la orden: {last_alert['amount']} {last_alert['market']}")
-
-        # Calcular monto según balance y tipo de orden
-        price = float(data.get("price", 50000))
-        side = data.get("side", "buy").lower()
-        amount = (total_balance / price) * 10  # Ajustar cantidad
-
-        # Preparar alerta
-        alert = {
-            "market": data.get("market", "BTCUSDT"),
-            "side": side,
-            "amount": round(amount, 8),
-            "price": price,
-            "sl_price": price * (0.99 if side == "buy" else 1.01),
-            "tp_price": price * (1.01 if side == "buy" else 0.99),
-        }
-        print(f"🚀 Orden preparada: {alert}")
-
-        # Ejecutar operaciones asincrónicamente
-        print("🚀 Cancelando posición...")
-        await asyncio.to_thread(close_position)
-
-        print("🚀 Cancelando órdenes previas...")
-        await asyncio.to_thread(cancel_all_orders, last_alert["side"])
-
-        print("🚀 Ajustando apalancamiento...")
-        await asyncio.to_thread(adjust_position_leverage)
-
-        print("🚀 Enviando orden...")
-        await asyncio.to_thread(send_order_to_coinex, last_alert["market"], last_alert["side"], last_alert["amount"])
-
-        print("🚀 Configurando Stop Loss y Take Profit...")
-        await asyncio.to_thread(set_position_stop_loss, last_alert["sl_price"])
-        await asyncio.to_thread(set_position_take_profit, last_alert["tp_price"])
-
-        print("✅ Alerta procesada con éxito:", last_alert)
-
-        # ✅ Guardar la respuesta en responses_dict para que webhook la encuentre
-        responses_dict[client_id] = {"status": "success", "data": alert}
-
-    except Exception as e:
-        print(f"🔥 Error en process_alert(): {str(e)}")
-        responses_dict[client_id] = {"status": "error", "message": str(e)}
 
 # Limitador de tasa (Máximo 20 llamadas por segundo)
 def rate_limiter(max_calls_per_second):
@@ -480,6 +383,9 @@ def set_position_take_profit(tp_price):
 
 @rate_limiter(20)  # Límite de 20 llamadas por segundo
 def send_order_to_coinex(market, side, amount):
+    # Para órdenes de venta (SELL), el amount debe ser negativo
+    if side.lower() == "sell":
+        amount = -abs(amount)  # Asegurar que amount sea negativo
     
     request_path = "/futures/order"
     data = {
@@ -525,20 +431,14 @@ def send_order_to_coinex(market, side, amount):
 
     return response
 
+# Variable global para almacenar la última alerta recibida
+last_alert = None  
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
+    global last_alert
     data = request.json
     print("📩 Alerta recibida:", data)
-
-    # Agregar la señal a la cola de manera segura en Flask
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_in_executor(None, alert_queue.put_nowait, data)  # 🔥 Corrección aquí
-    print("📌 Señal agregada a la cola. Esperando procesamiento...")
-
-    client_id = data["client_id"]
-    start_time = time.time()
-    timeout = 10  # Segundos máximos de espera antes de responder
 
     # Obtener balance de CoinEx
     response = get_futures_balance()
@@ -570,20 +470,21 @@ def webhook():
         print(f"❌ Error HTTP al obtener balance: {response.status_code}")
         return jsonify({"error": "Error HTTP al obtener balance"}), response.status_code
 
-    # Convertir valores y calcular SL y TP
-    try:
-        amount = float(data.get("amount", 0))
-        price = float(data.get("price", 50000))
-        side = data.get("side", "buy").lower()
+    # Convertir amount a número y verificar que sea válido
+    amount = float(data.get("amount", 0))
+    price = float(data.get("price", 50000))
+    side = data.get("side", "buy").lower()
 
-        if side not in ["buy", "sell"]:
-            raise ValueError("Side inválido")
-    except ValueError as e:
-        print(f"⚠️ Error en datos recibidos: {str(e)}")
-        return jsonify({"status": "error", "message": "Datos inválidos"}), 400
-
-    sl_price = price * (0.99 if side == "buy" else 1.01)
-    tp_price = price * (1.01 if side == "buy" else 0.99)
+    # Calcular SL y TP según el lado de la orden
+    if side == "buy":
+        sl_price = price * 0.99  # -1%
+        tp_price = price * 1.01  # +1%
+    elif side == "sell":
+        sl_price = price * 1.01  # +1%
+        tp_price = price * 0.99  # -1%
+    else:
+        print("⚠️ Error: 'side' inválido. Debe ser 'buy' o 'sell'.")
+        return jsonify({"status": "error", "message": "Side inválido"}), 400
 
     last_alert = {
         "market": data.get("market", "BTCUSDT"),
@@ -594,46 +495,163 @@ def webhook():
         "tp_price": tp_price,
     }
 
-    print(f"🚀 Orden preparada: {last_alert}")
+    print(f"🚀 Orden recibida: {last_alert}")
+    run_code()
 
-     # Esperar a que se procese la alerta con un tiempo límite
-    while client_id not in responses_dict:
-        if time.time() - start_time > timeout:
-            print("⚠️ Tiempo de espera agotado, devolviendo respuesta parcial")
-            return jsonify({"status": "processing", "message": "Alerta en proceso"}), 202
-        time.sleep(0.5)  # Pequeña espera para evitar uso intensivo de CPU
+    return jsonify({"status": "success", "message": "Alerta recibida"}), 200
 
-    response_data = responses_dict.pop(client_id)  # Obtener y eliminar la respuesta
 
-    return jsonify({"status": "success", "message": "Alerta recibida", "data": response_data}), 200
-
-async def run_code():
+def run_code():
     global last_alert
-    
-    while True:  
-        try:   
-            """
-            Función asincrónica que procesa las alertas en orden desde la cola.
-            """
-            data = await alert_queue.get()  # Espera hasta recibir una alerta
-            await process_alert(data)  # Procesa la alerta
-            alert_queue.task_done()  # Marca la alerta como completada
 
-        except Exception as e:
-            print(f"🔥 Error en run_code(): {str(e)}")
-            alert_queue.task_done()
-            time.sleep(3)  # Pequeña pausa para evitar loops de error
+    print("🏁 run_code() ha sido llamado")  # 👈 VERIFICA SI SE EJECUTA
+
+    try:
+        print("🔄 Ejecutando run_code()...")  # 👈 Verifica si entra aquí
+
+        if last_alert:
+            
+            print(f"🚀 Obteniendo balance...")  # 👈 Verifica los datos antes de enviar
+            
+            response_0 = get_futures_balance()
+            
+            print(f"🔍 Respuesta de close_position: {response_0}")  # 👈 Ver si se devuelve algo
+
+            if response_0.status_code == 200:
+                response_data = response_0.json()
+
+                if response_data.get("code") == 0:
+                    data = response_data.get("data", [])
+
+                    if isinstance(data, list) and len(data) > 0:  
+                        first_entry = data[0]  # ✅ Accede al primer elemento
+
+                        if isinstance(first_entry, dict):
+                            balance = float(first_entry.get("available", 0))
+                            margin = float(first_entry.get("margin", 0))  # ✅ Extrae margin correctamente
+                            total_balance = balance + margin  # ✅ Balance total sumando margin
+                            print(f"✅ Balance disponible: {balance}, Margin: {margin}, Total: {total_balance}")
+                        else:
+                            print("⚠️ El primer elemento de 'data' no es un diccionario válido.")
+                            return
+                    else:
+                        print(f"⚠️ La respuesta de CoinEx no tiene datos de balance.")
+                        return
+                else:
+                    print(f"❌ Error en la respuesta de CoinEx: {response_data.get('message', 'Desconocido')}")
+                    return
+            else:
+                print(f"❌ Error HTTP al obtener balance: {response_0.status_code}")
+                return
+
+            # Ajustar amount según balance y lado de la orden
+            amount = last_alert["amount"]
+
+            # ✅ Ajustar cantidad según balance y tipo de operación
+            if last_alert["side"] == "buy":
+                amount = (total_balance / float(last_alert["price"])) * 10  # Compra: usar balance para obtener cantidad
+            elif last_alert["side"] == "sell":
+                amount = (total_balance / float(last_alert["price"])) * 10  # Venta: usar todo el balance disponible
+            else:
+                print("⚠️ Error: 'side' inválido. Debe ser 'buy' o 'sell'.")
+                return
+
+            # Actualizar la alerta con el nuevo amount
+            last_alert["amount"] = round(amount, 8)  # Redondear para evitar errores de precisión
+
+            print(f"🚀 Monto ajustado para la orden: {last_alert['amount']} {last_alert['market']}")
+
+            print(f"🚀 Cancelando posición...")  # 👈 Verifica los datos antes de enviar
+            
+            response_1 = close_position()
+            
+            print(f"🔍 Respuesta de close_position: {response_1}")  # 👈 Ver si se devuelve algo
+            
+            print(f"🚀 Cancelando todas las órdenes...")  # 👈 Verifica los datos antes de enviar
+            
+            response_2 = cancel_all_orders(
+                last_alert["side"]
+            )
+            
+            print(f"🔍 Respuesta de cancel_all_orders: {response_2}")  # 👈 Ver si se devuelve algo
+
+            print(f"🚀 Ajustando apalancamiento...")  # 👈 Verifica los datos antes de enviar
+            
+            response_3 = adjust_position_leverage()
+            
+            print(f"🔍 Respuesta de adjust_position_leverage: {response_3}")  # 👈 Ver si se devuelve algo
+            
+            print(f"🚀 Enviando orden con alerta: {last_alert}")  # 👈 Verifica los datos antes de enviar
+
+            response_4 = send_order_to_coinex(
+                last_alert["market"],
+                last_alert["side"],
+                last_alert["amount"],
+            )
+
+            print(f"🔍 Respuesta de send_order_to_coinex: {response_4}")  # 👈 Ver si se devuelve algo
+
+            response_5 = set_position_stop_loss(
+                last_alert["sl_price"]
+            )
+
+            print(f"🔍 Respuesta de set_position_stop_loss: {response_5}")  # 👈 Ver si se devuelve algo
+
+            response_6 = set_position_take_profit(
+                last_alert["tp_price"]
+            )
+
+            print(f"🔍 Respuesta de set_position_take_profit: {response_6}")  # 👈 Ver si se devuelve algo
+
+            if response_1:
+                try:
+                    print(f"✅ Respuesta JSON de CoinEx: {response_1.json()}")  # 👈 Imprime la respuesta JSON real
+                except Exception as e:
+                    print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_1.text}")  # 👈 Ver error real
+
+            if response_2:
+                try:
+                    print(f"✅ Respuesta JSON de CoinEx: {response_2.json()}")  # 👈 Imprime la respuesta JSON real
+                except Exception as e:
+                    print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_2.text}")  # 👈 Ver error real
+
+            if response_3:
+                try:
+                    print(f"✅ Respuesta JSON de CoinEx: {response_3.json()}")  # 👈 Imprime la respuesta JSON real
+                except Exception as e:
+                    print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_3.text}")  # 👈 Ver error real
+
+            if response_4:
+                try:
+                    print(f"✅ Respuesta JSON de CoinEx: {response_4.json()}")  # 👈 Imprime la respuesta JSON real
+                except Exception as e:
+                    print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_4.text}")  # 👈 Ver error real
+
+            if response_5:
+                try:
+                    print(f"✅ Respuesta JSON de CoinEx: {response_5.json()}")  # 👈 Imprime la respuesta JSON real
+                except Exception as e:
+                    print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_5.text}")  # 👈 Ver error real
+
+            if response_6:
+                try:
+                    print(f"✅ Respuesta JSON de CoinEx: {response_6.json()}")  # 👈 Imprime la respuesta JSON real
+                except Exception as e:
+                    print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_6.text}")  # 👈 Ver error real
+
+            last_alert = None  # Limpia alerta después de usarla
+
+        else:
+            print("⚠️ No hay alertas pendientes.")
+
+    except Exception as e:
+        print(f"🔥 Error en run_code(): {str(e)}")
+
+    except Exception as e:
+        print("Error:", str(e))
+        time.sleep(3)
+        run_code()
 
 if __name__ == "__main__":
-    # Iniciar la ejecución de run_code() en un hilo separado
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-    def start_async_loop(loop):
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(run_code())
-
-    threading.Thread(target=start_async_loop, args=(loop,), daemon=True).start()
-    
-    # Iniciar la API Flask
     app.run(host="0.0.0.0", port=5000)
+    run_code()

@@ -13,6 +13,7 @@ import os
 from dotenv import load_dotenv
 import logging
 import queue
+import asyncio
 import threading
 
 logging.basicConfig(level=logging.INFO)
@@ -104,29 +105,88 @@ class RequestsClient(object):
 
 request_client = RequestsClient()
 
-# Crear una cola para almacenar las señales
-signal_queue = queue.Queue()
+# Cola de alertas asincrónica
+alert_queue = asyncio.Queue()
 
-# Diccionario para almacenar respuestas de cada alerta procesada
-responses_dict = {}
+responses_dict={}
 
-def process_alerts():
-    """Hilo que procesa señales en orden"""
-    while True:
-        alert = signal_queue.get()  # Espera a recibir una señal
-        if alert is None:
-            break  # Permite salir del bucle si se recibe None
+async def process_alert(alert):
+    """
+    Procesa una alerta de trading, ejecutando cada paso de manera asincrónica.
+    """
+    global last_alert
+    last_alert = alert
 
-        global last_alert
-        last_alert = alert
-        
-        print(f"🔄 Procesando señal: {alert}")
-        
-        responses = run_code()  # Ejecuta run_code con la señal actual
-        responses_dict[alert["client_id"]] = responses
+    print("🏁 Iniciando procesamiento de alerta:", alert)
 
-        print(f"✅ Señal procesada con respuestas: {responses}")
-        signal_queue.task_done()
+    try:
+        print("🚀 Obteniendo balance...")
+        response_0 = await asyncio.to_thread(get_futures_balance)
+
+        if response_0.status_code == 200:
+            response_data = response_0.json()
+            data = response_data.get("data", [])
+            if isinstance(data, list) and data:
+                first_entry = data[0]
+                balance = float(first_entry.get("available", 0))
+                margin = float(first_entry.get("margin", 0))
+                total_balance = balance + margin
+                print(f"✅ Balance disponible: {balance}, Margin: {margin}, Total: {total_balance}")
+            else:
+                print(f"⚠️ La respuesta de CoinEx no tiene datos de balance.")
+                return
+        else:
+            print(f"❌ Error HTTP al obtener balance: {response_0.status_code}")
+            return
+
+        # Ajustar amount según balance
+        amount = last_alert["amount"]
+        if last_alert["side"] in ["buy", "sell"]:
+            amount = (total_balance / float(last_alert["price"])) * 10
+        else:
+            print("⚠️ Error: 'side' inválido. Debe ser 'buy' o 'sell'.")
+            return
+        last_alert["amount"] = round(amount, 8)
+
+        print(f"🚀 Monto ajustado para la orden: {last_alert['amount']} {last_alert['market']}")
+
+        # Calcular monto según balance y tipo de orden
+        price = float(data.get("price", 50000))
+        side = data.get("side", "buy").lower()
+        amount = (total_balance / price) * 10  # Ajustar cantidad
+
+        # Preparar alerta
+        alert = {
+            "market": data.get("market", "BTCUSDT"),
+            "side": side,
+            "amount": round(amount, 8),
+            "price": price,
+            "sl_price": price * (0.99 if side == "buy" else 1.01),
+            "tp_price": price * (1.01 if side == "buy" else 0.99),
+        }
+        print(f"🚀 Orden preparada: {alert}")
+
+        # Ejecutar operaciones asincrónicamente
+        print("🚀 Cancelando posición...")
+        await asyncio.to_thread(close_position)
+
+        print("🚀 Cancelando órdenes previas...")
+        await asyncio.to_thread(cancel_all_orders, last_alert["side"])
+
+        print("🚀 Ajustando apalancamiento...")
+        await asyncio.to_thread(adjust_position_leverage)
+
+        print("🚀 Enviando orden...")
+        await asyncio.to_thread(send_order_to_coinex, last_alert["market"], last_alert["side"], last_alert["amount"])
+
+        print("🚀 Configurando Stop Loss y Take Profit...")
+        await asyncio.to_thread(set_position_stop_loss, last_alert["sl_price"])
+        await asyncio.to_thread(set_position_take_profit, last_alert["tp_price"])
+
+        print("✅ Alerta procesada con éxito:", last_alert)
+
+    except Exception as e:
+        print(f"🔥 Error en process_alert(): {str(e)}")
 
 # Limitador de tasa (Máximo 20 llamadas por segundo)
 def rate_limiter(max_calls_per_second):
@@ -455,12 +515,12 @@ def send_order_to_coinex(market, side, amount):
     return response
 
 @app.route('/webhook', methods=['POST'])
-def webhook():
+async def webhook():
     data = request.json
     print("📩 Alerta recibida:", data)
 
     # Agregar la señal a la cola para que se procese en orden
-    signal_queue.put(data)
+    asyncio.create_task(alert_queue.put(data))
     print("📌 Señal agregada a la cola. Esperando procesamiento...")
 
     # Obtener balance de CoinEx
@@ -493,21 +553,20 @@ def webhook():
         print(f"❌ Error HTTP al obtener balance: {response.status_code}")
         return jsonify({"error": "Error HTTP al obtener balance"}), response.status_code
 
-    # Convertir amount a número y verificar que sea válido
-    amount = float(data.get("amount", 0))
-    price = float(data.get("price", 50000))
-    side = data.get("side", "buy").lower()
+    # Convertir valores y calcular SL y TP
+    try:
+        amount = float(data.get("amount", 0))
+        price = float(data.get("price", 50000))
+        side = data.get("side", "buy").lower()
 
-    # Calcular SL y TP según el lado de la orden
-    if side == "buy":
-        sl_price = price * 0.99  # -1%
-        tp_price = price * 1.01  # +1%
-    elif side == "sell":
-        sl_price = price * 1.01  # +1%
-        tp_price = price * 0.99  # -1%
-    else:
-        print("⚠️ Error: 'side' inválido. Debe ser 'buy' o 'sell'.")
-        return jsonify({"status": "error", "message": "Side inválido"}), 400
+        if side not in ["buy", "sell"]:
+            raise ValueError("Side inválido")
+    except ValueError as e:
+        print(f"⚠️ Error en datos recibidos: {str(e)}")
+        return jsonify({"status": "error", "message": "Datos inválidos"}), 400
+
+    sl_price = price * (0.99 if side == "buy" else 1.01)
+    tp_price = price * (1.01 if side == "buy" else 0.99)
 
     last_alert = {
         "market": data.get("market", "BTCUSDT"),
@@ -518,101 +577,37 @@ def webhook():
         "tp_price": tp_price,
     }
 
-    print(f"🚀 Orden recibida: {last_alert}")
+    print(f"🚀 Orden preparada: {last_alert}")
 
      # Esperar a que se procese la alerta y devolver la respuesta HTTP completa
     while data["client_id"] not in responses_dict:
-        time.sleep(0.5)  # Esperar a que se procese
+        await asyncio.sleep(0.5)  # Esperar a que se procese
 
     response_data = responses_dict.pop(data["client_id"])  # Obtener y eliminar la respuesta almacenada    
 
-    return jsonify({"status": "success", "message": "Alerta recibida"}), 200
+    return jsonify({"status": "success", "message": "Alerta recibida", "data": response_data}), 200
 
-def run_code():
+async def run_code():
     global last_alert
     
-    while True:
-        try:
-            data = signal_queue.get()  # ⬅️ Espera hasta recibir una nueva señal
-            client_id = data.get("client_id", "default")
-            responses =[]
-
-            print(f"🏁 Procesando señal: {data}")
-
-            # Obtener balance antes de operar
-            print("🚀 Obteniendo balance...")
-            response_0 = get_futures_balance()
-            responses.append({"balance": response_0.json()})
-
-            if response_0.status_code == 200 and response_0.json().get("code") == 0:
-                balance_data = response_0.json().get("data", [])
-                if isinstance(balance_data, list) and len(balance_data) > 0:
-                    first_entry = balance_data[0]
-                    balance = float(first_entry.get("available", 0))
-                    margin = float(first_entry.get("margin", 0))
-                    total_balance = balance + margin
-                    print(f"✅ Balance disponible: {balance}, Margin: {margin}, Total: {total_balance}")
-                else:
-                    return {"error": "Balance inválido"}
-                    signal_queue.task_done()
-                    responses_dict[client_id] = responses
-                    continue
-            else:
-                print(f"❌ Error HTTP al obtener balance: {response_0.status_code}")
-                responses.append({"error": "Error al obtener balance"})
-                signal_queue.task_done()
-                responses_dict[client_id] = responses
-                continue
-
-            # Calcular monto según balance y tipo de orden
-            price = float(data.get("price", 50000))
-            side = data.get("side", "buy").lower()
-            amount = (total_balance / price) * 10  # Ajustar cantidad
-
-            # Preparar alerta
-            alert = {
-                "market": data.get("market", "BTCUSDT"),
-                "side": side,
-                "amount": round(amount, 8),
-                "price": price,
-                "sl_price": price * (0.99 if side == "buy" else 1.01),
-                "tp_price": price * (1.01 if side == "buy" else 0.99),
-            }
-            print(f"🚀 Orden preparada: {alert}")
-
-            # Ejecución de órdenes y recolección de respuestas
-            for step, (func, label) in enumerate([
-                (close_position, "close_position"),
-                (lambda: cancel_all_orders(side), "cancel_all_orders"),
-                (adjust_position_leverage, "adjust_leverage"),
-                (lambda: send_order_to_coinex(alert["market"], alert["side"], alert["amount"]), "send_order"),
-                (lambda: set_position_stop_loss(alert["sl_price"]), "stop_loss"),
-                (lambda: set_position_take_profit(alert["tp_price"]), "take_profit"),
-            ]):
-                print(f"🚀 Ejecutando {label}...")
-                try:
-                    response = func()
-                    responses.append({label: response.json()})
-                except Exception as e:
-                    responses.append({label: f"❌ Error: {str(e)}"})
-
-            last_alert = None # Limpiar alerta después de usarla
-
-            # Guardar respuestas para el webhook
-            responses_dict[client_id] = responses
-
-            # Liberar la señal de la cola
-            signal_queue.task_done()
+    while True:  
+        try:   
+            """
+            Función asincrónica que procesa las alertas en orden desde la cola.
+            """
+            data = await alert_queue.get()  # Espera hasta recibir una alerta
+            await process_alert(data)  # Procesa la alerta
+            alert_queue.task_done()  # Marca la alerta como completada
 
         except Exception as e:
             print(f"🔥 Error en run_code(): {str(e)}")
-            signal_queue.task_done()
+            alert_queue.task_done()
             time.sleep(3)  # Pequeña pausa para evitar loops de error
 
 if __name__ == "__main__":
-    # Iniciar el procesador de señales en un hilo separado
-    thread = threading.Thread(target=run_code, daemon=True)
-    thread.start()
+    # Ejecutar la cola de alertas en un hilo asincrónico
+    loop = asyncio.new_event_loop()
+    threading.Thread(target=lambda: loop.run_until_complete(run_code()), daemon=True).start()
     
     # Iniciar la API Flask
     app.run(host="0.0.0.0", port=5000)

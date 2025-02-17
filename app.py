@@ -530,8 +530,10 @@ def webhook():
     data = request.json
     print("📩 Alerta recibida:", data)
 
-    # Agregar la señal a la cola para que se procese en orden
-    asyncio.create_task(alert_queue.put(data))
+    # Agregar la señal a la cola de manera segura en Flask
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_in_executor(None, alert_queue.put_nowait, data)  # 🔥 Corrección aquí
     print("📌 Señal agregada a la cola. Esperando procesamiento...")
 
     client_id = data["client_id"]

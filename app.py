@@ -515,12 +515,14 @@ def send_order_to_coinex(market, side, amount):
     return response
 
 @app.route('/webhook', methods=['POST'])
-async def webhook():
+def webhook():
     data = request.json
     print("📩 Alerta recibida:", data)
 
     # Agregar la señal a la cola para que se procese en orden
-    asyncio.create_task(alert_queue.put(data))
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(alert_queue.put(data))
     print("📌 Señal agregada a la cola. Esperando procesamiento...")
 
     # Obtener balance de CoinEx
@@ -581,7 +583,7 @@ async def webhook():
 
      # Esperar a que se procese la alerta y devolver la respuesta HTTP completa
     while data["client_id"] not in responses_dict:
-        await asyncio.sleep(0.5)  # Esperar a que se procese
+        time.sleep(0.5)  # Esperar a que se procese
 
     response_data = responses_dict.pop(data["client_id"])  # Obtener y eliminar la respuesta almacenada    
 
@@ -605,9 +607,15 @@ async def run_code():
             time.sleep(3)  # Pequeña pausa para evitar loops de error
 
 if __name__ == "__main__":
-    # Ejecutar la cola de alertas en un hilo asincrónico
+    # Iniciar la ejecución de run_code() en un hilo separado
     loop = asyncio.new_event_loop()
-    threading.Thread(target=lambda: loop.run_until_complete(run_code()), daemon=True).start()
+    asyncio.set_event_loop(loop)
+
+    def start_async_loop(loop):
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(run_code())
+
+    threading.Thread(target=start_async_loop, args=(loop,), daemon=True).start()
     
     # Iniciar la API Flask
     app.run(host="0.0.0.0", port=5000)

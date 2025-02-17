@@ -383,9 +383,6 @@ def set_position_take_profit(tp_price):
 
 @rate_limiter(20)  # Límite de 20 llamadas por segundo
 def send_order_to_coinex(market, side, amount):
-    # Para órdenes de venta (SELL), el amount debe ser negativo
-    if side.lower() == "sell":
-        amount = -abs(amount)  # Asegurar que amount sea negativo
     
     request_path = "/futures/order"
     data = {

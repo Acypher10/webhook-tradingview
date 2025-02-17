@@ -117,6 +117,11 @@ async def process_alert(alert):
     global last_alert
     last_alert = alert
 
+    client_id = alert.get("client_id")  # Asegura que la alerta tenga un ID único
+    if not client_id:
+        print("⚠️ Alerta sin 'client_id', no se podrá devolver respuesta.")
+        return
+
     print("🏁 Iniciando procesamiento de alerta:", alert)
 
     try:
@@ -134,9 +139,11 @@ async def process_alert(alert):
                 print(f"✅ Balance disponible: {balance}, Margin: {margin}, Total: {total_balance}")
             else:
                 print(f"⚠️ La respuesta de CoinEx no tiene datos de balance.")
+                responses_dict[client_id] = {"status": "error", "message": "Sin datos de balance"}
                 return
         else:
             print(f"❌ Error HTTP al obtener balance: {response_0.status_code}")
+            responses_dict[client_id] = {"status": "error", "message": "Error HTTP en balance"}
             return
 
         # Ajustar amount según balance
@@ -185,8 +192,12 @@ async def process_alert(alert):
 
         print("✅ Alerta procesada con éxito:", last_alert)
 
+        # ✅ Guardar la respuesta en responses_dict para que webhook la encuentre
+        responses_dict[client_id] = {"status": "success", "data": alert}
+
     except Exception as e:
         print(f"🔥 Error en process_alert(): {str(e)}")
+        responses_dict[client_id] = {"status": "error", "message": str(e)}
 
 # Limitador de tasa (Máximo 20 llamadas por segundo)
 def rate_limiter(max_calls_per_second):
@@ -520,10 +531,12 @@ def webhook():
     print("📩 Alerta recibida:", data)
 
     # Agregar la señal a la cola para que se procese en orden
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(alert_queue.put(data))
+    asyncio.create_task(alert_queue.put(data))
     print("📌 Señal agregada a la cola. Esperando procesamiento...")
+
+    client_id = data["client_id"]
+    start_time = time.time()
+    timeout = 10  # Segundos máximos de espera antes de responder
 
     # Obtener balance de CoinEx
     response = get_futures_balance()
@@ -581,11 +594,14 @@ def webhook():
 
     print(f"🚀 Orden preparada: {last_alert}")
 
-     # Esperar a que se procese la alerta y devolver la respuesta HTTP completa
-    while data["client_id"] not in responses_dict:
-        time.sleep(0.5)  # Esperar a que se procese
+     # Esperar a que se procese la alerta con un tiempo límite
+    while client_id not in responses_dict:
+        if time.time() - start_time > timeout:
+            print("⚠️ Tiempo de espera agotado, devolviendo respuesta parcial")
+            return jsonify({"status": "processing", "message": "Alerta en proceso"}), 202
+        time.sleep(0.5)  # Pequeña espera para evitar uso intensivo de CPU
 
-    response_data = responses_dict.pop(data["client_id"])  # Obtener y eliminar la respuesta almacenada    
+    response_data = responses_dict.pop(client_id)  # Obtener y eliminar la respuesta
 
     return jsonify({"status": "success", "message": "Alerta recibida", "data": response_data}), 200
 

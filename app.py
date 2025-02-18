@@ -553,6 +553,10 @@ def run_code():
                 print("⚠️ Error: 'side' inválido. Debe ser 'buy' o 'sell'.")
                 return
 
+            # 🔥 Aplicar un offset del 2% para evitar "balance_not_enough"
+            offset_percentage = 0.02  # 2% de margen de seguridad
+            amount *= (1 - offset_percentage)  # Reduce un 2% la cantidad
+
             # Actualizar la alerta con el nuevo amount
             last_alert["amount"] = round(amount, 6)  # Redondear para evitar errores de precisión
 

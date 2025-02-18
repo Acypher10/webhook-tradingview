@@ -554,7 +554,7 @@ def run_code():
                 return
 
             # Actualizar la alerta con el nuevo amount
-            last_alert["amount"] = round(amount, 8)  # Redondear para evitar errores de precisión
+            last_alert["amount"] = round(amount, 3)  # Redondear para evitar errores de precisión
 
             print(f"🚀 Monto ajustado para la orden: {last_alert['amount']} {last_alert['market']}")
 

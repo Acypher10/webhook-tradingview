@@ -474,11 +474,11 @@ def webhook():
 
     # Calcular SL y TP según el lado de la orden
     if side == "buy":
-        sl_price = price * 0.9989  # -1%
-        tp_price = price * 1.0033  # +1%
+        sl_price = price * 0.9999  # -1%
+        tp_price = price * 1.0003  # +3%
     elif side == "sell":
-        sl_price = price * 1.0011  # +1%
-        tp_price = price * 0.9967  # -1%
+        sl_price = price * 1.0001  # +1%
+        tp_price = price * 0.9997  # -3%
     else:
         print("⚠️ Error: 'side' inválido. Debe ser 'buy' o 'sell'.")
         return jsonify({"status": "error", "message": "Side inválido"}), 400

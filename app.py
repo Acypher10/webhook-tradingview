@@ -122,7 +122,7 @@ def rate_limiter(max_calls_per_second):
 @rate_limiter(10) # Límite de 10 llamadas por segundo
 def get_futures_market():
     request_path = "/futures/market"
-    params = {"market": "BTCUSDT"}
+    params = {"market": "ETHUSDT"}
     response = request_client.request(
         "GET",
         "{url}{request_path}".format(url=request_client.url, request_path=request_path),
@@ -173,7 +173,7 @@ def calculate_order_amount(balance, price):
 @rate_limiter(20) # Límite de 20 llamadas por segundo
 def close_position():
     request_path = "/futures/close-position"
-    data = {"market": "BTCUSDT",
+    data = {"market": "ETHUSDT",
               "market_type": "FUTURES",
               "type": "market",
               "amount": None,
@@ -217,7 +217,7 @@ def close_position():
 @rate_limiter(20) # Límite de 20 llamadas por segundo
 def cancel_all_orders(side):
     request_path = "/futures/cancel-all-order"
-    data = {"market": "BTCUSDT", 
+    data = {"market": "ETHUSDT", 
               "market_type": "FUTURES",
               "side": side,
               }
@@ -258,7 +258,7 @@ def cancel_all_orders(side):
 @rate_limiter(10) # Límite de 10 llamadas por segundo
 def adjust_position_leverage():
     request_path = "/futures/adjust-position-leverage"
-    data = {"market": "BTCUSDT", 
+    data = {"market": "ETHUSDT", 
               "market_type": "FUTURES",
               "margin_mode": "isolated",
               "leverage": 10
@@ -300,7 +300,7 @@ def adjust_position_leverage():
 @rate_limiter(20) # Límite de 20 llamadas por segundo
 def set_position_stop_loss(sl_price):
     request_path = "/futures/set-position-stop-loss"
-    data = {"market": "BTCUSDT", 
+    data = {"market": "ETHUSDT", 
               "market_type": "FUTURES",
               "stop_loss_type": "latest_price",
               "stop_loss_price": sl_price
@@ -342,7 +342,7 @@ def set_position_stop_loss(sl_price):
 @rate_limiter(20) # Límite de 20 llamadas por segundo
 def set_position_take_profit(tp_price):
     request_path = "/futures/set-position-take-profit"
-    data = {"market": "BTCUSDT", 
+    data = {"market": "ETHUSDT", 
               "market_type": "FUTURES",
               "take_profit_type": "latest_price",
               "take_profit_price": tp_price
@@ -484,7 +484,7 @@ def webhook():
         return jsonify({"status": "error", "message": "Side inválido"}), 400
 
     last_alert = {
-        "market": data.get("market", "BTCUSDT"),
+        "market": data.get("market", "ETHUSDT"),
         "side": side,
         "amount": amount,
         "price": price,

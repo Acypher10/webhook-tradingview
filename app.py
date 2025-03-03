@@ -164,12 +164,6 @@ def get_futures_balance():
 
     return response
 
-def calculate_order_amount(balance, price):
-    """Calcula la cantidad de contratos o activos a comprar con el balance disponible"""
-    order_size = min(balance, 100)  # Usa hasta 100 USDT o el balance disponible
-    amount = order_size / price  # Convertir USDT a cantidad de BTC, ETH, etc.
-    return round(amount, 6)  # Redondear para evitar errores de precisión
-
 @rate_limiter(20) # Límite de 20 llamadas por segundo
 def close_position():
     request_path = "/futures/close-position"
@@ -428,47 +422,6 @@ def send_order_to_coinex(market, side, amount):
 
     return response
 
-def get_current_position():
-    
-    request_path = "/futures/finished-order"
-    data = {
-        "market": "BTCUSDT",
-        "market_type": "FUTURES",
-    }
-    data_json = json.dumps(data)
-
-    logging.info(f"📤 Obteniendo datos de posición CoinEx: {data_json}")
-    print(f"📤 Obteniendo datos de posición CoinEx: {data_json}")  # 👈 Se imprimirá en los logs de Render
-
-    try:
-        response = request_client.request(
-            "GET",
-            "{url}{request_path}".format(url=request_client.url, request_path=request_path),
-            data=data_json,
-        )
-
-        logging.info(f"✅ Respuesta HTTP: {response.status_code}")
-        print(f"✅ Respuesta HTTP: {response.status_code}")  # 👈 Se imprimirá en los logs de Render
-
-        try:
-            response_data = response.json()
-            logging.info(f"📌 Respuesta JSON de CoinEx: {response_data}")
-            print(f"📌 Respuesta JSON de CoinEx: {response_data}")  # 👈 Se imprimirá en los logs de Render
-
-            if "code" in response_data and response_data["code"] != 0:
-                logging.error(f"❌ Error de CoinEx: {response_data['message']}")
-                print(f"❌ Error de CoinEx: {response_data['message']}")  # 👈 Se imprimirá en los logs de Render
-
-        except ValueError:
-            logging.error(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")
-            print(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")  # 👈 Se imprimirá en los logs de Render
-
-    except requests.exceptions.RequestException as e:
-        logging.error(f"🚨 Error de conexión con CoinEx: {str(e)}")
-        print(f"🚨 Error de conexión con CoinEx: {str(e)}")  # 👈 Se imprimirá en los logs de Render
-
-    return response
-
 # Variable global para almacenar la última alerta recibida
 last_alert = None  
 
@@ -512,34 +465,6 @@ def webhook():
     amount = float(data.get("amount", 0))
     price = float(data.get("price", 50000))
     side = data.get("side", "buy").lower()
-
-    # Obtener Precio de Entrada de CoinEx
-    response_0 = get_current_position()
-
-    if response_0.status_code == 200:
-        response_data_0 = response_0.json()
-
-        if response_data_0.get("code") == 0:
-            order_data = response_data_0.get("data", [])
-
-            if isinstance(order_data, list) and len(order_data) > 0:
-                second_entry = order_data[0]  # ✅ Accede al primer elemento
-
-                if isinstance(second_entry, dict):
-                    avg_entry_price = float(second_entry.get("filled_value", 0))
-                    print(f"✅ Average entry Price: {avg_entry_price}")
-                else:
-                    print("⚠️ Error: El primer elemento de 'data' no es un diccionario válido.")
-                    return jsonify({"error": "Formato inválido en balance"}), 500
-            else:
-                print(f"⚠️ La respuesta de CoinEx no tiene datos de orden.")
-                return jsonify({"error": "Sin datos de balance"}), 500
-        else:
-            print(f"❌ Error en respuesta de CoinEx: {response_data.get('message', 'Desconocido')}")
-            return jsonify({"error": "Error en respuesta de CoinEx"}), 500
-    else:
-        print(f"❌ Error HTTP al obtener datos de la orden: {response.status_code}")
-        return jsonify({"error": "Error HTTP al obtener balance"}), response.status_code
 
     # Calcular SL y TP según el lado de la orden
     if side == "buy":
@@ -661,14 +586,9 @@ def run_code():
 
             print(f"🔍 Respuesta de send_order_to_coinex: {response_4}")  # 👈 Ver si se devuelve algo
 
-            print(f"🚀 Obteniendo datos de orden")  # 👈 Verifica los datos antes de enviar
-            
-            response_4_1 = get_current_position()
-            
-            print(f"🔍 Respuesta de datos de la order: {response_4_1}")  # 👈 Ver si se devuelve algo
 
-            if response_4_1.status_code == 200:
-                response_data_1 = response_4_1.json()
+            if response_4.status_code == 200:
+                response_data_1 = response_4.json()
 
                 if response_data_1.get("code") == 0:
                     data = response_data_1.get("data", [])
@@ -688,7 +608,7 @@ def run_code():
                     print(f"❌ Error en la respuesta de CoinEx: {response_data_1.get('message', 'Desconocido')}")
                     return
             else:
-                print(f"❌ Error HTTP al obtener datos de la orden: {response_4_1.status_code}")
+                print(f"❌ Error HTTP al obtener datos de la orden: {response_4.status_code}")
                 return
             
             # Ajustar SL y TP según precio real de la orden

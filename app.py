@@ -122,7 +122,7 @@ def rate_limiter(max_calls_per_second):
 @rate_limiter(10) # Límite de 10 llamadas por segundo
 def get_futures_market():
     request_path = "/futures/market"
-    params = {"market": "ETHUSDT"}
+    params = {"market": "BTCUSDT"}
     response = request_client.request(
         "GET",
         "{url}{request_path}".format(url=request_client.url, request_path=request_path),
@@ -173,7 +173,7 @@ def calculate_order_amount(balance, price):
 @rate_limiter(20) # Límite de 20 llamadas por segundo
 def close_position():
     request_path = "/futures/close-position"
-    data = {"market": "ETHUSDT",
+    data = {"market": "BTCUSDT",
               "market_type": "FUTURES",
               "type": "market",
               "amount": None,
@@ -217,7 +217,7 @@ def close_position():
 @rate_limiter(20) # Límite de 20 llamadas por segundo
 def cancel_all_orders(side):
     request_path = "/futures/cancel-all-order"
-    data = {"market": "ETHUSDT", 
+    data = {"market": "BTCUSDT", 
               "market_type": "FUTURES",
               "side": side,
               }
@@ -258,10 +258,10 @@ def cancel_all_orders(side):
 @rate_limiter(10) # Límite de 10 llamadas por segundo
 def adjust_position_leverage():
     request_path = "/futures/adjust-position-leverage"
-    data = {"market": "ETHUSDT", 
+    data = {"market": "BTCUSDT", 
               "market_type": "FUTURES",
               "margin_mode": "isolated",
-              "leverage": 10
+              "leverage": 5
               }
     data_json = json.dumps(data)
 
@@ -300,7 +300,7 @@ def adjust_position_leverage():
 @rate_limiter(20) # Límite de 20 llamadas por segundo
 def set_position_stop_loss(sl_price):
     request_path = "/futures/set-position-stop-loss"
-    data = {"market": "ETHUSDT", 
+    data = {"market": "BTCUSDT", 
               "market_type": "FUTURES",
               "stop_loss_type": "latest_price",
               "stop_loss_price": sl_price
@@ -342,15 +342,15 @@ def set_position_stop_loss(sl_price):
 @rate_limiter(20) # Límite de 20 llamadas por segundo
 def set_position_take_profit(tp_price):
     request_path = "/futures/set-position-take-profit"
-    data = {"market": "ETHUSDT", 
+    data = {"market": "BTCUSDT", 
               "market_type": "FUTURES",
               "take_profit_type": "latest_price",
               "take_profit_price": tp_price
               }
     data_json = json.dumps(data)
 
-    logging.info(f"📤 Enviando stop loss: {data_json}")
-    print(f"📤 Enviando stop loss: {data_json}")  # 👈 Ver en logs de Render
+    logging.info(f"📤 Enviando take profit: {data_json}")
+    print(f"📤 Enviando take profit: {data_json}")  # 👈 Ver en logs de Render
 
     try:
         response = request_client.request(
@@ -439,6 +439,7 @@ def webhook():
 
     # Obtener balance de CoinEx
     response = get_futures_balance()
+    response_0 = send_order_to_coinex()
 
     if response.status_code == 200:
         response_data = response.json()
@@ -466,6 +467,31 @@ def webhook():
     else:
         print(f"❌ Error HTTP al obtener balance: {response.status_code}")
         return jsonify({"error": "Error HTTP al obtener balance"}), response.status_code
+    
+    if response_0.status_code == 200:
+        response_data = response_0.json()
+
+        if response_data.get("code") == 0:
+            order_data = response_data.get("data", [])
+
+            if isinstance(order_data, list) and len(order_data) > 0:
+                first_entry = order_data[0]  # ✅ Accede al primer elemento
+
+                if isinstance(first_entry, dict):
+                    avg_entry_price = float(first_entry.get("last_filled_price", 0))
+                    print(f"✅ Average entry Price: {avg_entry_price}")
+                else:
+                    print("⚠️ Error: El primer elemento de 'data' no es un diccionario válido.")
+                    return jsonify({"error": "Formato inválido en balance"}), 500
+            else:
+                print(f"⚠️ La respuesta de CoinEx no tiene datos de la orden.")
+                return jsonify({"error": "Sin datos de la orden"}), 500
+        else:
+            print(f"❌ Error en respuesta de CoinEx: {response_data.get('message', 'Desconocido')}")
+            return jsonify({"error": "Error en respuesta de CoinEx"}), 500
+    else:
+        print(f"❌ Error HTTP al obtener datos de orden: {response_0.status_code}")
+        return jsonify({"error": "Error HTTP al obtener datos de orden"}), response_0.status_code
 
     # Convertir amount a número y verificar que sea válido
     amount = float(data.get("amount", 0))
@@ -474,17 +500,17 @@ def webhook():
 
     # Calcular SL y TP según el lado de la orden
     if side == "buy":
-        sl_price = price * 0.99985  # -1%
-        tp_price = price * 1.0004  # +3%
+        sl_price = price * 0.9966  # -1%
+        tp_price = price * 1.0102  # +3%
     elif side == "sell":
-        sl_price = price * 1.00015  # +1%
-        tp_price = price * 0.9996  # -3%
+        sl_price = price * 1.0034  # +1%
+        tp_price = price * 0.9898  # -3%
     else:
         print("⚠️ Error: 'side' inválido. Debe ser 'buy' o 'sell'.")
         return jsonify({"status": "error", "message": "Side inválido"}), 400
 
     last_alert = {
-        "market": data.get("market", "ETHUSDT"),
+        "market": data.get("market", "BTCUSDT"),
         "side": side,
         "amount": amount,
         "price": price,
@@ -546,9 +572,9 @@ def run_code():
 
             # ✅ Ajustar cantidad según balance y tipo de operación
             if last_alert["side"] == "buy":
-                amount = (total_balance / float(last_alert["price"])) * 10  # Compra: usar balance para obtener cantidad
+                amount = (total_balance / float(last_alert["price"])) * 5  # Compra: usar balance para obtener cantidad
             elif last_alert["side"] == "sell":
-                amount = (total_balance / float(last_alert["price"])) * 10  # Venta: usar todo el balance disponible
+                amount = (total_balance / float(last_alert["price"])) * 5  # Venta: usar todo el balance disponible
             else:
                 print("⚠️ Error: 'side' inválido. Debe ser 'buy' o 'sell'.")
                 return
@@ -592,6 +618,52 @@ def run_code():
 
             print(f"🔍 Respuesta de send_order_to_coinex: {response_4}")  # 👈 Ver si se devuelve algo
 
+            if response_4.status_code == 200:
+                response_data = response_4.json()
+
+                if response_data.get("code") == 0:
+                    data = response_data.get("data", [])
+
+                    if isinstance(data, list) and len(data) > 0:  
+                        second_entry = data[0]  # ✅ Accede al primer elemento
+
+                        if isinstance(second_entry, dict):
+                            avg_entry_price = float(first_entry.get("last_filled_price", 0))
+                            print(f"✅ Average entry Price: {avg_entry_price}")
+                        else:
+                            print("⚠️ El primer elemento de 'data' no es un diccionario válido.")
+                            return
+                    else:
+                        print(f"⚠️ La respuesta de CoinEx no tiene precio de entrada de la orden.")
+                        return
+                else:
+                    print(f"❌ Error en la respuesta de CoinEx: {response_data.get('message', 'Desconocido')}")
+                    return
+            else:
+                print(f"❌ Error HTTP al obtener datos de la orden: {response_0.status_code}")
+                return
+            
+            # Ajustar SL y TP según precio real de la orden
+            sl_price = last_alert["sl_price"]
+            tp_price = last_alert["tp_price"]
+
+            # ✅ Ajustar cantidad según balance y tipo de operación
+            if last_alert["side"] == "buy":
+                sl_price = avg_entry_price * 0.9966  # Compra: usar SL y TP más exacto
+                tp_price = avg_entry_price * 1.0102
+            elif last_alert["side"] == "sell":
+                sl_price = avg_entry_price * 1.0034 # Venta: usar SL y TP más exacto
+                tp_price = avg_entry_price * 0.9966  
+            else:
+                print("⚠️ Error: 'side' inválido. Debe ser 'buy' o 'sell'.")
+                return
+            
+            # Actualizar la alerta con el nuevo SL y TP
+            last_alert["sl_price"] = round(sl_price, 6)  # Redondear para evitar errores de precisión
+            last_alert["tp_price"] = round(tp_price, 6) 
+
+            print(f"🚀 SL y TP ajustado para la orden: {last_alert['sl_price']} {last_alert['sl_price']}")
+            
             response_5 = set_position_stop_loss(
                 last_alert["sl_price"]
             )

@@ -593,16 +593,16 @@ def run_code():
             print(f"🔍 Respuesta de send_order_to_coinex: {response_4}")  # 👈 Ver si se devuelve algo
 
             if response_4.status_code == 200:
-                response_data = response_4.json()
+                response_data_1 = response_4.json()
 
                 if response_data.get("code") == 0:
-                    data = response_data.get("data", [])
+                    data = response_data_1.get("data", [])
 
                     if isinstance(data, list) and len(data) > 0:  
                         second_entry = data[0]  # ✅ Accede al primer elemento
 
                         if isinstance(second_entry, dict):
-                            avg_entry_price = float(first_entry.get("last_filled_price", 0))
+                            avg_entry_price = float(second_entry.get("last_filled_price", 0))
                             print(f"✅ Average entry Price: {avg_entry_price}")
                         else:
                             print("⚠️ El primer elemento de 'data' no es un diccionario válido.")
@@ -611,7 +611,7 @@ def run_code():
                         print(f"⚠️ La respuesta de CoinEx no tiene precio de entrada de la orden.")
                         return
                 else:
-                    print(f"❌ Error en la respuesta de CoinEx: {response_data.get('message', 'Desconocido')}")
+                    print(f"❌ Error en la respuesta de CoinEx: {response_data_1.get('message', 'Desconocido')}")
                     return
             else:
                 print(f"❌ Error HTTP al obtener datos de la orden: {response_0.status_code}")

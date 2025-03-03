@@ -636,7 +636,7 @@ def run_code():
             last_alert["sl_price"] = round(sl_price, 6)  # Redondear para evitar errores de precisión
             last_alert["tp_price"] = round(tp_price, 6) 
 
-            print(f"🚀 SL y TP ajustado para la orden: {last_alert['sl_price']} {last_alert['sl_price']}")
+            print(f"🚀 SL y TP ajustado para la orden: {last_alert['sl_price']} {last_alert['tp_price']}")
             
             response_5 = set_position_stop_loss(
                 last_alert["sl_price"]

@@ -439,7 +439,7 @@ def webhook():
 
     # Obtener balance de CoinEx
     response = get_futures_balance()
-    response_0 = send_order_to_coinex()
+    response_0 = send_order_to_coinex("BTCUSDT", amount, side)
 
     if response.status_code == 200:
         response_data = response.json()

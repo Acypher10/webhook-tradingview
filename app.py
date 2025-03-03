@@ -472,6 +472,34 @@ def webhook():
     price = float(data.get("price", 50000))
     side = data.get("side", "buy").lower()
 
+    # Obtener Precio de Entrada de CoinEx
+    response_0 = get_futures_balance()
+
+    if response_0.status_code == 200:
+        response_data_0 = response_0.json()
+
+        if response_data_0.get("code") == 0:
+            order_data = response_data_0.get("data", [])
+
+            if isinstance(order_data, list) and len(order_data) > 0:
+                second_entry = order_data[0]  # ✅ Accede al primer elemento
+
+                if isinstance(second_entry, dict):
+                    avg_entry_price = float(second_entry.get("last_filled_price", 0))
+                    print(f"✅ Average entry Price: {avg_entry_price}")
+                else:
+                    print("⚠️ Error: El primer elemento de 'data' no es un diccionario válido.")
+                    return jsonify({"error": "Formato inválido en balance"}), 500
+            else:
+                print(f"⚠️ La respuesta de CoinEx no tiene datos de ordem.")
+                return jsonify({"error": "Sin datos de balance"}), 500
+        else:
+            print(f"❌ Error en respuesta de CoinEx: {response_data.get('message', 'Desconocido')}")
+            return jsonify({"error": "Error en respuesta de CoinEx"}), 500
+    else:
+        print(f"❌ Error HTTP al obtener datos de la orden: {response.status_code}")
+        return jsonify({"error": "Error HTTP al obtener balance"}), response.status_code
+
     # Calcular SL y TP según el lado de la orden
     if side == "buy":
         sl_price = price * 0.9966  # -1%

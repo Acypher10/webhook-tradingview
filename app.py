@@ -428,6 +428,49 @@ def send_order_to_coinex(market, side, amount):
 
     return response
 
+def get_current_position():
+    
+    request_path = "/futures/pending-position"
+    data = {
+        "market": "BTCUSDT",
+        "market_type": "FUTURES",
+        "page": 1,
+        "limit": 10,  # Corrección si antes estaba como 'is_hiden'
+    }
+    data_json = json.dumps(data)
+
+    logging.info(f"📤 Obteniendo datos de posición CoinEx: {data_json}")
+    print(f"📤 Obteniendo datos de posición CoinEx: {data_json}")  # 👈 Se imprimirá en los logs de Render
+
+    try:
+        response = request_client.request(
+            "GET",
+            "{url}{request_path}".format(url=request_client.url, request_path=request_path),
+            data=data_json,
+        )
+
+        logging.info(f"✅ Respuesta HTTP: {response.status_code}")
+        print(f"✅ Respuesta HTTP: {response.status_code}")  # 👈 Se imprimirá en los logs de Render
+
+        try:
+            response_data = response.json()
+            logging.info(f"📌 Respuesta JSON de CoinEx: {response_data}")
+            print(f"📌 Respuesta JSON de CoinEx: {response_data}")  # 👈 Se imprimirá en los logs de Render
+
+            if "code" in response_data and response_data["code"] != 0:
+                logging.error(f"❌ Error de CoinEx: {response_data['message']}")
+                print(f"❌ Error de CoinEx: {response_data['message']}")  # 👈 Se imprimirá en los logs de Render
+
+        except ValueError:
+            logging.error(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")
+            print(f"❌ Error: CoinEx no devolvió JSON. Respuesta cruda: {response.text}")  # 👈 Se imprimirá en los logs de Render
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"🚨 Error de conexión con CoinEx: {str(e)}")
+        print(f"🚨 Error de conexión con CoinEx: {str(e)}")  # 👈 Se imprimirá en los logs de Render
+
+    return response
+
 # Variable global para almacenar la última alerta recibida
 last_alert = None  
 
@@ -473,7 +516,7 @@ def webhook():
     side = data.get("side", "buy").lower()
 
     # Obtener Precio de Entrada de CoinEx
-    response_0 = get_futures_balance()
+    response_0 = get_current_position()
 
     if response_0.status_code == 200:
         response_data_0 = response_0.json()
@@ -485,7 +528,7 @@ def webhook():
                 second_entry = order_data[0]  # ✅ Accede al primer elemento
 
                 if isinstance(second_entry, dict):
-                    avg_entry_price = float(second_entry.get("last_filled_price", 0))
+                    avg_entry_price = float(second_entry.get("avg_entry_price", 0))
                     print(f"✅ Average entry Price: {avg_entry_price}")
                 else:
                     print("⚠️ Error: El primer elemento de 'data' no es un diccionario válido.")
@@ -620,8 +663,14 @@ def run_code():
 
             print(f"🔍 Respuesta de send_order_to_coinex: {response_4}")  # 👈 Ver si se devuelve algo
 
-            if response_4.status_code == 200:
-                response_data_1 = response_4.json()
+            print(f"🚀 Obteniendo datos de orden")  # 👈 Verifica los datos antes de enviar
+            
+            response_4_1 = get_current_position()
+            
+            print(f"🔍 Respuesta de datos de la order: {response_4_1}")  # 👈 Ver si se devuelve algo
+
+            if response_4_1.status_code == 200:
+                response_data_1 = response_4_1.json()
 
                 if response_data_1.get("code") == 0:
                     data = response_data_1.get("data", [])
@@ -629,7 +678,7 @@ def run_code():
                     if isinstance(data, list) and len(data) > 0:  
                         second_entry = data[0]  # ✅ Accede al primer elemento
                         if isinstance(second_entry, dict):
-                            avg_entry_price = float(second_entry.get("last_filled_price", 0))
+                            avg_entry_price = float(second_entry.get("avg_entry_price", 0))
                             print(f"✅ Average entry Price: {avg_entry_price}")
                         else:
                             print("⚠️ El primer elemento de 'data' no es un diccionario válido.")
@@ -641,7 +690,7 @@ def run_code():
                     print(f"❌ Error en la respuesta de CoinEx: {response_data_1.get('message', 'Desconocido')}")
                     return
             else:
-                print(f"❌ Error HTTP al obtener datos de la orden: {response_0.status_code}")
+                print(f"❌ Error HTTP al obtener datos de la orden: {response_4_1.status_code}")
                 return
             
             # Ajustar SL y TP según precio real de la orden

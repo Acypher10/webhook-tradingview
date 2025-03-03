@@ -466,34 +466,6 @@ def webhook():
     else:
         print(f"❌ Error HTTP al obtener balance: {response.status_code}")
         return jsonify({"error": "Error HTTP al obtener balance"}), response.status_code
-    
-    #Obtener precio de entrada
-    response_0 = send_order_to_coinex("BTCUSDT", amount, side)
-
-    if response_0.status_code == 200:
-        response_data = response_0.json()
-
-        if response_data.get("code") == 0:
-            order_data = response_data.get("data", [])
-
-            if isinstance(order_data, list) and len(order_data) > 0:
-                first_entry = order_data[0]  # ✅ Accede al primer elemento
-
-                if isinstance(first_entry, dict):
-                    avg_entry_price = float(first_entry.get("last_filled_price", 0))
-                    print(f"✅ Average entry Price: {avg_entry_price}")
-                else:
-                    print("⚠️ Error: El primer elemento de 'data' no es un diccionario válido.")
-                    return jsonify({"error": "Formato inválido en balance"}), 500
-            else:
-                print(f"⚠️ La respuesta de CoinEx no tiene datos de la orden.")
-                return jsonify({"error": "Sin datos de la orden"}), 500
-        else:
-            print(f"❌ Error en respuesta de CoinEx: {response_data.get('message', 'Desconocido')}")
-            return jsonify({"error": "Error en respuesta de CoinEx"}), 500
-    else:
-        print(f"❌ Error HTTP al obtener datos de orden: {response_0.status_code}")
-        return jsonify({"error": "Error HTTP al obtener datos de orden"}), response_0.status_code
 
     # Convertir amount a número y verificar que sea válido
     amount = float(data.get("amount", 0))

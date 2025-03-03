@@ -439,7 +439,6 @@ def webhook():
 
     # Obtener balance de CoinEx
     response = get_futures_balance()
-    response_0 = send_order_to_coinex("BTCUSDT", amount, side)
 
     if response.status_code == 200:
         response_data = response.json()
@@ -468,6 +467,9 @@ def webhook():
         print(f"❌ Error HTTP al obtener balance: {response.status_code}")
         return jsonify({"error": "Error HTTP al obtener balance"}), response.status_code
     
+    #Obtener precio de entrada
+    response_0 = send_order_to_coinex("BTCUSDT", amount, side)
+
     if response_0.status_code == 200:
         response_data = response_0.json()
 

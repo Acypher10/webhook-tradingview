@@ -430,12 +430,10 @@ def send_order_to_coinex(market, side, amount):
 
 def get_current_position():
     
-    request_path = "/futures/pending-position"
+    request_path = "/futures/finished-order"
     data = {
         "market": "BTCUSDT",
         "market_type": "FUTURES",
-        "page": 1,
-        "limit": 10,  # Corrección si antes estaba como 'is_hiden'
     }
     data_json = json.dumps(data)
 
@@ -528,7 +526,7 @@ def webhook():
                 second_entry = order_data[0]  # ✅ Accede al primer elemento
 
                 if isinstance(second_entry, dict):
-                    avg_entry_price = float(second_entry.get("avg_entry_price", 0))
+                    avg_entry_price = float(second_entry.get("filled_value", 0))
                     print(f"✅ Average entry Price: {avg_entry_price}")
                 else:
                     print("⚠️ Error: El primer elemento de 'data' no es un diccionario válido.")
@@ -678,7 +676,7 @@ def run_code():
                     if isinstance(data, list) and len(data) > 0:  
                         second_entry = data[0]  # ✅ Accede al primer elemento
                         if isinstance(second_entry, dict):
-                            avg_entry_price = float(second_entry.get("avg_entry_price", 0))
+                            avg_entry_price = float(second_entry.get("filled_value", 0))
                             print(f"✅ Average entry Price: {avg_entry_price}")
                         else:
                             print("⚠️ El primer elemento de 'data' no es un diccionario válido.")

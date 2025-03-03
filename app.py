@@ -596,10 +596,10 @@ def run_code():
                 response_data_1 = response_4.json()
 
                 if response_data_1.get("code") == 0:
-                    data = response_data_1.get("data", [])
+                    data0 = response_data_1.get("data", [])
 
-                    if isinstance(data, list) and len(data) > 0:  
-                        second_entry = data[0]  # ✅ Accede al primer elemento
+                    if isinstance(data0, list) and len(data0) > 0:  
+                        second_entry = data0[0]  # ✅ Accede al primer elemento
 
                         if isinstance(second_entry, dict):
                             avg_entry_price = float(second_entry.get("last_filled_price", 0))

@@ -595,7 +595,7 @@ def run_code():
             if response_4.status_code == 200:
                 response_data_1 = response_4.json()
 
-                if response_data.get("code") == 0:
+                if response_data_1.get("code") == 0:
                     data = response_data_1.get("data", [])
 
                     if isinstance(data, list) and len(data) > 0:  

@@ -609,6 +609,8 @@ def run_code():
                 print(f"❌ Error HTTP al obtener datos de la orden: {response_4.status_code}")
                 return
             
+            print(f"🔍 Precio de entrada recibido: {avg_entry_price}")
+
             # Ajustar SL y TP según precio real de la orden
             sl_price = last_alert["sl_price"]
             tp_price = last_alert["tp_price"]

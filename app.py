@@ -615,11 +615,11 @@ def run_code():
 
             # ✅ Ajustar cantidad según balance y tipo de operación
             if last_alert["side"] == "buy":
-                sl_price = avg_entry_price * 0.9966  # Compra: usar SL y TP más exacto
-                tp_price = avg_entry_price * 1.0102
+                sl_price = float(avg_entry_price * 0.9966)  # Compra: usar SL y TP más exacto
+                tp_price = float(avg_entry_price * 1.0102)
             elif last_alert["side"] == "sell":
-                sl_price = avg_entry_price * 1.0034 # Venta: usar SL y TP más exacto
-                tp_price = avg_entry_price * 0.9966  
+                sl_price = float(avg_entry_price * 1.0034) # Venta: usar SL y TP más exacto
+                tp_price = float(avg_entry_price * 0.9966)  
             else:
                 print("⚠️ Error: 'side' inválido. Debe ser 'buy' o 'sell'.")
                 return

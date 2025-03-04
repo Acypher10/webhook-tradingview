@@ -596,7 +596,7 @@ def run_code():
                     if isinstance(data, list) and len(data) > 0:  
                         first_entry = data[0]  # Para respuestas donde "data" es una lista
                         print("📌 Data es una lista:", data)
-                        avg_entry_price = float(data.get["last_filled_price", 0])
+                        avg_entry_price = float(data["last_filled_price", 0])
                     elif isinstance(data, dict):
                         print("📌 Data es un diccionario:", first_entry)  # Para respuestas donde "data" es un diccionario
                         avg_entry_price = float(first_entry.get("last_filled_price", 0))

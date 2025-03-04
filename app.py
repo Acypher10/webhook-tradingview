@@ -595,7 +595,8 @@ def run_code():
 
                     if isinstance(data0, list) and len(data0) > 0:  
                         second_entry = data0[0]  # ✅ Accede al primer elemento
-                        if isinstance(second_entry, dict):
+                        print("📌 Data es una lista:", second_entry)
+                        if isinstance(data0, dict):
                             avg_entry_price = float(data0["last_filled_price"])
                             print(f"✅ Average entry Price: {avg_entry_price}")
                         else:

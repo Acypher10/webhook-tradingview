@@ -591,20 +591,17 @@ def run_code():
                 response_data_1 = response_4.json()
 
                 if response_data_1.get("code") == 0:
-                    data0 = response_data_1.get("data", [])
+                    data = response_data_1.get("data", [])
 
-                    if isinstance(data0, list) and len(data0) > 0:  
-                        second_entry = data0[0]  # ✅ Accede al primer elemento
-                        print("📌 Data es una lista:", second_entry)
-                        if isinstance(data0, dict):
-                            avg_entry_price = float(data0["last_filled_price"])
-                            print(f"✅ Average entry Price: {avg_entry_price}")
-                        else:
-                            print(f"⚠️ No se encontró 'last_filled_price' en la respuesta de CoinEx: {data0}")
-                            return
+                    if isinstance(data, list) and len(data) > 0:  
+                        first_entry = data[0]  # Para respuestas donde "data" es una lista
+                        print("📌 Data es una lista:", first_entry)
+                        avg_entry_price = float(data["last_filled_price"])
+                    elif isinstance(data, dict):
+                        print("📌 Data es un diccionario:", data)  # Para respuestas donde "data" es un diccionario
+                        avg_entry_price = float(first_entry.get("last_filled_price", 0))
                     else:
-                        print(f"⚠️ La respuesta de CoinEx no tiene precio de entrada de la orden.")
-                        return
+                        print("⚠️ Formato inesperado de 'data':", data)
                 else:
                     print(f"❌ Error en la respuesta de CoinEx: {response_data_1.get('message', 'Desconocido')}")
                     return

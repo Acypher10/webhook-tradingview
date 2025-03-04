@@ -621,7 +621,7 @@ def run_code():
                 tp_price = float(avg_entry_price * 1.0102)
             elif last_alert["side"] == "sell":
                 sl_price = float(avg_entry_price * 1.0034) # Venta: usar SL y TP más exacto
-                tp_price = float(avg_entry_price * 0.9966)  
+                tp_price = float(avg_entry_price * 0.9898)  
             else:
                 print("⚠️ Error: 'side' inválido. Debe ser 'buy' o 'sell'.")
                 return

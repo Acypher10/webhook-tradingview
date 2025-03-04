@@ -596,10 +596,10 @@ def run_code():
                     if isinstance(data0, list) and len(data0) > 0:  
                         second_entry = data0[0]  # ✅ Accede al primer elemento
                         if isinstance(second_entry, dict):
-                            avg_entry_price = float(second_entry.get("last_filled_price", 0))
+                            avg_entry_price = float(data0["last_filled_price"])
                             print(f"✅ Average entry Price: {avg_entry_price}")
                         else:
-                            print("⚠️ El primer elemento de 'data' no es un diccionario válido.")
+                            print(f"⚠️ No se encontró 'last_filled_price' en la respuesta de CoinEx: {data0}")
                             return
                     else:
                         print(f"⚠️ La respuesta de CoinEx no tiene precio de entrada de la orden.")

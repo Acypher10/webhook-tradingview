@@ -596,10 +596,12 @@ def run_code():
                     if isinstance(data, list) and len(data) > 0:  
                         first_entry = data[0]  # Para respuestas donde "data" es una lista
                         print("📌 Data es una lista:", first_entry)
-                        avg_entry_price = float(first_entry.get("last_filled_price", 0))
+                        avg_entry_price = float(first_entry.get("amount", 0))
+                        amount = float(first_entry.get("amount", 0))
                     elif isinstance(data, dict):
                         print("📌 Data es un diccionario:", data)  # Para respuestas donde "data" es un diccionario
-                        avg_entry_price = float(data.get("last_filled_price", 0))
+                        avg_entry_price = float(data.get("amount", 0))
+                        amount = float(first_entry.get("amount", 0))
                     else:
                         print("⚠️ Formato inesperado de 'data':", data)
                 else:
@@ -610,27 +612,43 @@ def run_code():
                 return
             
             print(f"🔍 Precio de entrada recibido: {avg_entry_price}")
+            print(f"📦 Amount operado: {amount}")
 
-            # Ajustar SL y TP según precio real de la orden
-            sl_price = last_alert["sl_price"]
-            tp_price = last_alert["tp_price"]
+            # === CÁLCULO ROI CON APALANCAMIENTO ===
+            leverage = 5
+            position_value = total_balance * leverage  # Valor total de la posición apalancada
 
-            # ✅ Ajustar cantidad según balance y tipo de operación
+            roi_tp_dollars = total_balance * 0.02  # Ganancia objetivo 3%
+            roi_sl_dollars = total_balance * 0.01  # Pérdida aceptable 1%
+
+            # Cálculo del cambio de precio necesario (pips/puntos)
+            price_change_tp = roi_tp_dollars / amount
+            price_change_sl = roi_sl_dollars / amount
+
+            # Cálculo de precios TP/SL según tipo de orden
             if last_alert["side"] == "buy":
-                sl_price = float(avg_entry_price * 0.9966)  # Compra: usar SL y TP más exacto
-                tp_price = float(avg_entry_price * 1.0102)
+                tp_price = avg_entry_price + price_change_tp
+                sl_price = avg_entry_price - price_change_sl
             elif last_alert["side"] == "sell":
-                sl_price = float(avg_entry_price * 1.0034) # Venta: usar SL y TP más exacto
-                tp_price = float(avg_entry_price * 0.9898)  
+                tp_price = avg_entry_price - price_change_tp
+                sl_price = avg_entry_price + price_change_sl
             else:
                 print("⚠️ Error: 'side' inválido. Debe ser 'buy' o 'sell'.")
                 return
-            
-            # Actualizar la alerta con el nuevo SL y TP
-            last_alert["sl_price"] = round(sl_price, 6)  # Redondear para evitar errores de precisión
-            last_alert["tp_price"] = round(tp_price, 6) 
 
-            print(f"🚀 SL y TP ajustado para la orden: {last_alert['sl_price']} {last_alert['tp_price']}")
+            # Redondear
+            last_alert["tp_price"] = round(tp_price, 6)
+            last_alert["sl_price"] = round(sl_price, 6)
+
+            # Cálculo de los pips/puntos de diferencia
+            pips_tp = abs(tp_price - avg_entry_price)
+            pips_sl = abs(sl_price - avg_entry_price)
+
+            # === MOSTRAR TODO EN CONSOLA PARA CONTROL ===
+            print("📊 Cálculo de TP y SL:")
+            print(f"  🔸 Precio de entrada: {avg_entry_price}")
+            print(f"  🔸 Take Profit: {last_alert['tp_price']}  (+${roi_tp_dollars:.2f} | +{pips_tp:.6f} puntos)")
+            print(f"  🔸 Stop Loss  : {last_alert['sl_price']}  (-${roi_sl_dollars:.2f} | -{pips_sl:.6f} puntos)")
             
             response_5 = set_position_stop_loss(
                 last_alert["sl_price"]

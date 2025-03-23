@@ -596,12 +596,12 @@ def run_code():
                     if isinstance(data, list) and len(data) > 0:  
                         first_entry = data[0]  # Para respuestas donde "data" es una lista
                         print("📌 Data es una lista:", first_entry)
-                        avg_entry_price = float(first_entry.get("amount", 0))
-                        amount = float(first_entry.get("amount", 0))
+                        avg_entry_price = float(first_entry.get("last_filled_price", 0))
+                        filled_value = float(first_entry.get("filled_value", 0))
                     elif isinstance(data, dict):
                         print("📌 Data es un diccionario:", data)  # Para respuestas donde "data" es un diccionario
-                        avg_entry_price = float(data.get("amount", 0))
-                        amount = float(first_entry.get("amount", 0))
+                        avg_entry_price = float(data.get("last_filled_price", 0))
+                        filled_value = float(first_entry.get("filled_value", 0))
                     else:
                         print("⚠️ Formato inesperado de 'data':", data)
                 else:
@@ -612,43 +612,38 @@ def run_code():
                 return
             
             print(f"🔍 Precio de entrada recibido: {avg_entry_price}")
-            print(f"📦 Amount operado: {amount}")
+            print(f"📦 Monto operado: {filled_value}")
 
-            # === CÁLCULO ROI CON APALANCAMIENTO ===
-            leverage = 5
-            position_value = total_balance * leverage  # Valor total de la posición apalancada
+            # === PARÁMETROS DE RIESGO Y CÁLCULO DE ROI ===
+            balance = total_balance  # Tu balance real sin apalancamiento
+            risk_pct_gain = 0.02     # 3% ganancia
+            risk_pct_loss = 0.01     # 1% pérdida
 
-            roi_tp_dollars = total_balance * 0.02  # Ganancia objetivo 3%
-            roi_sl_dollars = total_balance * 0.01  # Pérdida aceptable 1%
+            roi_gain = balance * risk_pct_gain  # Ej: 3 USDT
+            roi_loss = balance * risk_pct_loss  # Ej: 1 USDT
 
-            # Cálculo del cambio de precio necesario (pips/puntos)
-            price_change_tp = roi_tp_dollars / amount
-            price_change_sl = roi_sl_dollars / amount
+            btc_size = filled_value / avg_entry_price  # Cantidad real de BTC operado
 
-            # Cálculo de precios TP/SL según tipo de orden
+            # === CÁLCULO DE TP/SL ===
+        
             if last_alert["side"] == "buy":
-                tp_price = avg_entry_price + price_change_tp
-                sl_price = avg_entry_price - price_change_sl
+                tp_price = avg_entry_price + (roi_gain / btc_size)
+                sl_price = avg_entry_price - (roi_loss / btc_size)
             elif last_alert["side"] == "sell":
-                tp_price = avg_entry_price - price_change_tp
-                sl_price = avg_entry_price + price_change_sl
+                tp_price = avg_entry_price - (roi_gain / btc_size)
+                sl_price = avg_entry_price + (roi_loss / btc_size)
             else:
-                print("⚠️ Error: 'side' inválido. Debe ser 'buy' o 'sell'.")
+                print("⚠️ Error: 'side' inválido. Debe ser 'buy' o 'sell'")
                 return
 
-            # Redondear
-            last_alert["tp_price"] = round(tp_price, 6)
-            last_alert["sl_price"] = round(sl_price, 6)
+            # === GUARDAR EN LA ALERTA Y REDONDEAR ===
+            last_alert["tp_price"] = round(tp_price, 2)
+            last_alert["sl_price"] = round(sl_price, 2)
 
-            # Cálculo de los pips/puntos de diferencia
-            pips_tp = abs(tp_price - avg_entry_price)
-            pips_sl = abs(sl_price - avg_entry_price)
-
-            # === MOSTRAR TODO EN CONSOLA PARA CONTROL ===
+            # === MOSTRAR RESULTADO ===
             print("📊 Cálculo de TP y SL:")
-            print(f"  🔸 Precio de entrada: {avg_entry_price}")
-            print(f"  🔸 Take Profit: {last_alert['tp_price']}  (+${roi_tp_dollars:.2f} | +{pips_tp:.6f} puntos)")
-            print(f"  🔸 Stop Loss  : {last_alert['sl_price']}  (-${roi_sl_dollars:.2f} | -{pips_sl:.6f} puntos)")
+            print(f"  🔸 Take Profit: {last_alert['tp_price']}  (+{roi_gain:.2f} USDT)")
+            print(f"  🔸 Stop Loss  : {last_alert['sl_price']}  (-{roi_loss:.2f} USDT)")
             
             response_5 = set_position_stop_loss(
                 last_alert["sl_price"]

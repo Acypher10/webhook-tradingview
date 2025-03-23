@@ -601,7 +601,7 @@ def run_code():
                     elif isinstance(data, dict):
                         print("📌 Data es un diccionario:", data)  # Para respuestas donde "data" es un diccionario
                         avg_entry_price = float(data.get("last_filled_price", 0))
-                        filled_value = float(first_entry.get("filled_value", 0))
+                        filled_value = float(data.get("filled_value", 0))
                     else:
                         print("⚠️ Formato inesperado de 'data':", data)
                 else:

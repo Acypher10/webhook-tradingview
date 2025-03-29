@@ -616,10 +616,10 @@ def run_code():
 
             # === PARÁMETROS DE RIESGO Y CÁLCULO DE ROI ===
             balance = total_balance  # Tu balance real sin apalancamiento
-            risk_pct_gain = 0.02     # 3% ganancia
-            risk_pct_loss = 0.01     # 1% pérdida
+            risk_pct_gain = 0.09     # 3% ganancia
+            risk_pct_loss = 0.025     # 1% pérdida
 
-            roi_gain = balance * risk_pct_gain  # Ej: 3 USDT
+            roi_gain = balance * risk_pct_gain  # Ej: 3 USDT + 1
             roi_loss = balance * risk_pct_loss  # Ej: 1 USDT
 
             btc_size = filled_value / avg_entry_price  # Cantidad real de BTC operado

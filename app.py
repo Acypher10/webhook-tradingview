@@ -616,8 +616,8 @@ def run_code():
 
             # === PARÁMETROS DE RIESGO Y CÁLCULO DE ROI ===
             balance = total_balance  # Tu balance real sin apalancamiento
-            risk_pct_gain = 0.095     # 3% ganancia
-            risk_pct_loss = 0.025     # 1% pérdida
+            risk_pct_gain = 0.085     # 8.5% ganancia 
+            risk_pct_loss = 0.025     # 2.5% pérdida
 
             roi_gain = balance * risk_pct_gain  # Ej: 3 USDT + 1
             roi_loss = balance * risk_pct_loss  # Ej: 1 USDT

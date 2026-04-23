@@ -440,6 +440,15 @@ def log_event(step, data):
 
     event_pipeline.append(event)
 
+events = []
+
+def push_event(step, data):
+    events.append({
+        "step": step,
+        "timestamp": time.time(),
+        "data": data
+    })
+
 # Variable global para almacenar la última alerta recibida
 last_alert = None 
 
@@ -539,6 +548,7 @@ def webhook():
                     margin = float(first_entry.get("margin", 0))  # ✅ Extrae margin correctamente
                     total_balance = balance + margin  # ✅ Balance total sumando margin
                     print(f"✅ Balance disponible: {balance}, Margin: {margin}, Total: {total_balance}")
+                    push_event("balance", {"balance": balance,"margin": margin,"total": total_balance})
                 else:
                     print("⚠️ Error: El primer elemento de 'data' no es un diccionario válido.")
                     return jsonify({"error": "Formato inválido en balance"}), 500
@@ -704,11 +714,13 @@ def run_code():
                         avg_entry_price = float(first_entry.get("last_filled_price", 0))
                         filled_value = float(first_entry.get("filled_value", 0))
                         log_event("order", {"market": data.get("market"),"side": data.get("side"),"entry_price": avg_entry_price,"filled_value": filled_value,"order_id": data.get("order_id")})
+                        push_event("order_executed", {"price": avg_entry_price,"value": filled_value,"side": last_alert["side"]})
                     elif isinstance(data, dict):
                         print("📌 Data es un diccionario:", data)  # Para respuestas donde "data" es un diccionario
                         avg_entry_price = float(data.get("last_filled_price", 0))
                         filled_value = float(data.get("filled_value", 0))
                         log_event("order", {"market": data.get("market"),"side": data.get("side"),"entry_price": avg_entry_price,"filled_value": filled_value,"order_id": data.get("order_id")})
+                        push_event("order_executed", {"price": avg_entry_price,"value": filled_value,"side": last_alert["side"]})
                     else:
                         print("⚠️ Formato inesperado de 'data':", data)
                 else:
@@ -758,6 +770,7 @@ def run_code():
 
             print(f"🔍 Respuesta de set_position_stop_loss: {response_5}")  # 👈 Ver si se devuelve algo
             log_event("stop_loss", {"price": last_alert["sl_price"],"response": response_5.json() if response_5 else None})
+            push_event("stop_loss", response_5.json())
 
             response_6 = set_position_take_profit(
                 last_alert["tp_price"]
@@ -765,6 +778,7 @@ def run_code():
 
             print(f"🔍 Respuesta de set_position_take_profit: {response_6}")  # 👈 Ver si se devuelve algo
             log_event("take_profit", {"price": last_alert["tp_price"],"response": response_6.json() if response_6 else None})
+            push_event("take_profit", response_6.json())
 
             if response_1:
                 try:
@@ -812,7 +826,18 @@ def run_code():
                     print("📈 Ganancia detectada. Reset de consecutivas.")
 
             # ✅ EVENTO FINAL
-            final_payload = {"alert": last_alert,"events": event_pipeline}
+            final_payload = {
+                "status": "completed",
+                "alert": last_alert,
+                "events": event_pipeline,
+                "summary": {
+                    "balance": total_balance,
+                    "side": last_alert["side"],
+                    "amount": last_alert["amount"],
+                    "tp": last_alert.get("tp_price"),
+                    "sl": last_alert.get("sl_price")
+                }
+            }
 
             print("📦 FINAL PAYLOAD:", final_payload)
 
@@ -820,6 +845,8 @@ def run_code():
             requests.post(AZURE_FUNCTION_URL,json=final_payload)
 
             risk_state["last_balance"] = total_balance
+
+            event_pipeline.clear()
 
             last_alert = None  # Limpia alerta después de usarla
 

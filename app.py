@@ -12,6 +12,7 @@ from urllib.parse import urlparse, urlencode
 import os
 from dotenv import load_dotenv
 import logging
+from datetime import datetime, timedelta
 
 logging.basicConfig(level=logging.INFO)
 
@@ -23,9 +24,13 @@ load_dotenv()
 
 API_KEY = os.getenv("ACCESS_ID")
 API_SECRET = os.getenv("SECRET_KEY")
+AZURE_FUNCTION_URL = os.getenv("AZURE_FUNCTION_URL")
 
 if not API_KEY or not API_SECRET:
     raise ValueError("Faltan las variables de entorno ACCESS_ID o SECRET_KEY")
+
+if not AZURE_FUNCTION_URL:
+    raise ValueError("AZURE_FUNCTION_URL not set")
 
 API_URL = "https://api.coinex.com/v2/futures/order"  # URL para órdenes en futuros
 FINISHED_ORDERS_URL = "https://api.coinex.com/v2/futures/order/list-finished-order"  # URL para órdenes finalizadas
@@ -422,8 +427,94 @@ def send_order_to_coinex(market, side, amount):
 
     return response
 
+event_pipeline = []
+
+def log_event(step, data):
+    global event_pipeline
+
+    event = {
+        "step": step,
+        "timestamp": datetime.utcnow().isoformat(),
+        "data": data
+    }
+
+    event_pipeline.append(event)
+
 # Variable global para almacenar la última alerta recibida
-last_alert = None  
+last_alert = None 
+
+# === VARIABLES DE CONTROL DE RIESGO ===
+max_consecutive_losses = 3     # Stop de 2–3 pérdidas consecutivas
+max_daily_loss_pct = 0.07      # Stop diario 7%
+max_total_loss_pct = 0.25      # Stop general 25%
+
+risk_state = {
+    "consecutive_losses": 0,
+    "daily_loss": 0.0,
+    "start_balance": None,
+    "last_balance": None,
+    "paused": False,
+    "pause_reason": "",
+    "pause_time": None
+}
+
+def reset_daily_if_needed(current_time, current_balance):
+    """🔄 Reinicia las variables de riesgo cada 24 horas"""
+    global risk_state
+
+    if risk_state["pause_time"] is None:
+        return
+
+    # Si han pasado más de 24 horas desde el último stop → reset
+    if current_time - risk_state["pause_time"] >= timedelta(hours=24):
+        print("⏰ 24h cumplidas. Reset automático de reglas de riesgo.")
+        risk_state["consecutive_losses"] = 0
+        risk_state["daily_loss"] = 0.0
+        risk_state["start_balance"] = current_balance
+        risk_state["paused"] = False
+        risk_state["pause_reason"] = ""
+        risk_state["pause_time"] = None
+
+def check_risk_limits(current_balance):
+    """✅ Verifica si los límites de riesgo fueron alcanzados"""
+    global risk_state
+
+    if risk_state["start_balance"] is None:
+        risk_state["start_balance"] = current_balance
+        risk_state["last_balance"] = current_balance
+
+    # Calcular pérdida diaria
+    daily_loss = (risk_state["start_balance"] - current_balance) / risk_state["start_balance"]
+
+    # Calcular pérdida total
+    total_loss = (risk_state["last_balance"] - current_balance) / risk_state["last_balance"]
+
+    # Guardar en estado
+    risk_state["daily_loss"] = daily_loss
+
+    # Revisar consecutivas
+    if risk_state["consecutive_losses"] >= max_consecutive_losses:
+        risk_state["paused"] = True
+        risk_state["pause_reason"] = f"❌ Stop por {max_consecutive_losses} pérdidas consecutivas"
+        risk_state["pause_time"] = datetime.now()
+        return False
+
+    # Revisar stop diario
+    if daily_loss >= max_daily_loss_pct:
+        risk_state["paused"] = True
+        risk_state["pause_reason"] = f"❌ Stop diario alcanzado ({daily_loss:.2%})"
+        risk_state["pause_time"] = datetime.now()
+        return False
+
+    # Revisar stop general
+    if total_loss >= max_total_loss_pct:
+        risk_state["paused"] = True
+        risk_state["pause_reason"] = f"❌ Stop general alcanzado ({total_loss:.2%})"
+        risk_state["pause_time"] = datetime.now()
+        return False
+
+    return True
+
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -493,13 +584,18 @@ def webhook():
 
 
 def run_code():
-    global last_alert
+    global last_alert, risk_state
 
     print("🏁 run_code() ha sido llamado")  # 👈 VERIFICA SI SE EJECUTA
 
     try:
         print("🔄 Ejecutando run_code()...")  # 👈 Verifica si entra aquí
 
+        if risk_state["paused"]:
+            print(f"⏸️ Operaciones pausadas: {risk_state['pause_reason']}")
+            reset_daily_if_needed(datetime.now(), risk_state["last_balance"])
+            return
+        
         if last_alert:
             
             print(f"🚀 Obteniendo balance...")  # 👈 Verifica los datos antes de enviar
@@ -522,6 +618,15 @@ def run_code():
                             margin = float(first_entry.get("margin", 0))  # ✅ Extrae margin correctamente
                             total_balance = balance + margin  # ✅ Balance total sumando margin
                             print(f"✅ Balance disponible: {balance}, Margin: {margin}, Total: {total_balance}")
+                            log_event("balance", {"available": balance,"margin": margin,"total": total_balance})
+
+                            # 🔄 Reset automático si han pasado 24h
+                            reset_daily_if_needed(datetime.now(), total_balance)
+
+                            # ✅ Verificar límites de riesgo
+                            if not check_risk_limits(total_balance):
+                                print("⚠️ Límite alcanzado. No se envía la orden.")
+                                return
                         else:
                             print("⚠️ El primer elemento de 'data' no es un diccionario válido.")
                             return
@@ -598,10 +703,12 @@ def run_code():
                         print("📌 Data es una lista:", first_entry)
                         avg_entry_price = float(first_entry.get("last_filled_price", 0))
                         filled_value = float(first_entry.get("filled_value", 0))
+                        log_event("order", {"market": data.get("market"),"side": data.get("side"),"entry_price": avg_entry_price,"filled_value": filled_value,"order_id": data.get("order_id")})
                     elif isinstance(data, dict):
                         print("📌 Data es un diccionario:", data)  # Para respuestas donde "data" es un diccionario
                         avg_entry_price = float(data.get("last_filled_price", 0))
                         filled_value = float(data.get("filled_value", 0))
+                        log_event("order", {"market": data.get("market"),"side": data.get("side"),"entry_price": avg_entry_price,"filled_value": filled_value,"order_id": data.get("order_id")})
                     else:
                         print("⚠️ Formato inesperado de 'data':", data)
                 else:
@@ -616,7 +723,7 @@ def run_code():
 
             # === PARÁMETROS DE RIESGO Y CÁLCULO DE ROI ===
             balance = total_balance  # Tu balance real sin apalancamiento
-            risk_pct_gain = 0.108     # 10% ganancia 3:1 RR
+            risk_pct_gain = 0.085     # 8.5% ganancia
             risk_pct_loss = 0.025     # 2.5% pérdida
 
             roi_gain = balance * risk_pct_gain  # Ej: 3 USDT + 1
@@ -650,12 +757,14 @@ def run_code():
             )
 
             print(f"🔍 Respuesta de set_position_stop_loss: {response_5}")  # 👈 Ver si se devuelve algo
+            log_event("stop_loss", {"price": last_alert["sl_price"],"response": response_5.json() if response_5 else None})
 
             response_6 = set_position_take_profit(
                 last_alert["tp_price"]
             )
 
             print(f"🔍 Respuesta de set_position_take_profit: {response_6}")  # 👈 Ver si se devuelve algo
+            log_event("take_profit", {"price": last_alert["tp_price"],"response": response_6.json() if response_6 else None})
 
             if response_1:
                 try:
@@ -692,6 +801,25 @@ def run_code():
                     print(f"✅ Respuesta JSON de CoinEx: {response_6.json()}")  # 👈 Imprime la respuesta JSON real
                 except Exception as e:
                     print(f"❌ Error al leer JSON de CoinEx: {str(e)} - Respuesta cruda: {response_6.text}")  # 👈 Ver error real
+
+            # === EVALUAR RESULTADO DE LA OPERACIÓN ===
+            if risk_state["last_balance"] is not None:
+                if total_balance < risk_state["last_balance"]:
+                    risk_state["consecutive_losses"] += 1
+                    print(f"📉 Pérdida detectada. Consecutivas: {risk_state['consecutive_losses']}")
+                else:
+                    risk_state["consecutive_losses"] = 0
+                    print("📈 Ganancia detectada. Reset de consecutivas.")
+
+            # ✅ EVENTO FINAL
+            final_payload = {"alert": last_alert,"events": event_pipeline}
+
+            print("📦 FINAL PAYLOAD:", final_payload)
+
+            # 🚀 Enviar a Azure
+            requests.post(AZURE_FUNCTION_URL,json=final_payload)
+
+            risk_state["last_balance"] = total_balance
 
             last_alert = None  # Limpia alerta después de usarla
 
